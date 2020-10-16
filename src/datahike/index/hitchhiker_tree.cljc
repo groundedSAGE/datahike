@@ -113,7 +113,7 @@
 (defn empty-tree
   "Create empty hichthiker tree"
   []
-  (ha/<?? (tree/b-tree (tree/->Config br-sqrt br (- br br-sqrt)))))
+  (tree/b-tree (tree/->Config br-sqrt br (- br br-sqrt))))
 
 (defn -insert [tree ^Datom datom index-type]
   (ha/<?? (hmsg/insert tree (datom->node datom index-type) nil)))
@@ -121,12 +121,13 @@
 (defn init-tree
   "Create tree with datoms"
   [datoms index-type]
-  (ha/<??
-   (ha/reduce<
-    (fn [tree datom]
-      (hmsg/insert tree (datom->node datom index-type) nil))
-    (empty-tree)
-    (seq datoms))))
+  (ha/go-try
+   (ha/<?
+    (ha/reduce<
+     (fn [tree datom]
+       (hmsg/insert tree (datom->node datom index-type) nil))
+     (ha/<? (empty-tree))
+     (seq datoms)))))
 
 (defn -remove [tree ^Datom datom index-type]
   (ha/<?? (hmsg/delete tree (datom->node datom index-type))))

@@ -1,5 +1,19 @@
 (ns sandbox
-  (:require [datahike.api :as d]))
+  (:require [datahike.api :as d]
+            [datahike.db :as db]
+            [hitchhiker.tree.utils.clojure.async :as ha]))
+
+
+
+(comment 
+  
+  
+  (ha/<?? (db/empty-db))
+  (ha/<?? (db/init-db []))
+  
+  ;;
+  )
+
 
 (comment
 
@@ -39,3 +53,4 @@
          :where [?e :name ?v ?t] [?e :age ?a]]
        @conn
        35))
+

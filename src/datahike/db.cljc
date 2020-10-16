@@ -3,6 +3,8 @@
    #?(:cljs [goog.array :as garray])
    [clojure.walk]
    [clojure.data]
+   [hitchhiker.tree.utils.clojure.async :as ha]
+   [superv.async :refer [<?? S]]
    #?(:clj [clojure.pprint :as pp])
    [datahike.index :refer [-slice -seq -count -all -persistent! -transient] :as di]
    [datahike.datom :as dd :refer [datom datom-tx datom-added datom?]]
@@ -756,21 +758,21 @@
          _ (if on-read?
              (validate-schema schema)
              (validate-write-schema schema))]
-     (map->DB
-      (merge
-       {:schema  (merge implicit-schema schema)
-        :rschema (rschema (merge implicit-schema schema))
-        :config  config
-        :eavt    (di/empty-index index :eavt)
-        :aevt    (di/empty-index index :aevt)
-        :avet    (di/empty-index index :avet)
-        :max-eid e0
-        :max-tx  tx0
-        :hash    0}
-       (when keep-history?
-         {:temporal-eavt (di/empty-index index :eavt)
-          :temporal-aevt (di/empty-index index :aevt)
-          :temporal-avet (di/empty-index index :avet)}))))))
+     (ha/go-try (map->DB
+                 (merge
+                  {:schema  (merge implicit-schema schema)
+                   :rschema (rschema (merge implicit-schema schema))
+                   :config  config
+                   :eavt    (ha/<? (di/empty-index index :eavt))
+                   :aevt    (ha/<? (di/empty-index index :aevt))
+                   :avet    (ha/<? (di/empty-index index :avet))
+                   :max-eid e0
+                   :max-tx  tx0
+                   :hash    0}
+                  (when keep-history?
+                    {:temporal-eavt (ha/<? (di/empty-index index :eavt))
+                     :temporal-aevt (ha/<? (di/empty-index index :aevt))
+                     :temporal-avet (ha/<? (di/empty-index index :avet))})))))))
 
 (defn init-max-eid [eavt]
   ;; solved with reserse slice first in datascript
@@ -790,27 +792,27 @@
   ([datoms schema] (init-db datoms schema nil))
   ([datoms schema config]
    (validate-schema schema)
-   (let [{:keys [index schema-flexibility keep-history?] :as config} (merge (dc/storeless-config) config)
-         rschema (rschema (merge implicit-schema schema))
-         indexed (:db/index rschema)
-         eavt (di/init-index index datoms indexed :eavt)
-         aevt (di/init-index index datoms indexed :aevt)
-         avet (di/init-index index datoms indexed :avet)
-         max-eid (init-max-eid eavt)
-         max-tx (get-max-tx eavt)]
-     (map->DB (merge {:schema  (merge schema (when (= :read schema-flexibility) implicit-schema))
-                      :rschema rschema
-                      :config  config
-                      :eavt    eavt
-                      :aevt    aevt
-                      :avet    avet
-                      :max-eid max-eid
-                      :max-tx  max-tx
-                      :hash    (hash-datoms datoms)}
-                     (when keep-history?
-                       {:temporal-eavt (di/empty-index index :eavt)
-                        :temporal-aevt (di/empty-index index :aevt)
-                        :temporal-avet (di/empty-index index :avet)}))))))
+   (ha/go-try (let [{:keys [index schema-flexibility keep-history?] :as config} (merge (dc/storeless-config) config)
+                    rschema (rschema (merge implicit-schema schema))
+                    indexed (:db/index rschema)
+                    eavt (ha/<? (di/init-index index datoms indexed :eavt))
+                    aevt (ha/<? (di/init-index index datoms indexed :aevt))
+                    avet (ha/<? (di/init-index index datoms indexed :avet))
+                    max-eid (init-max-eid eavt)
+                    max-tx (get-max-tx eavt)]
+                (map->DB (merge {:schema  (merge schema (when (= :read schema-flexibility) implicit-schema))
+                                 :rschema rschema
+                                 :config  config
+                                 :eavt    eavt
+                                 :aevt    aevt
+                                 :avet    avet
+                                 :max-eid max-eid
+                                 :max-tx  max-tx
+                                 :hash    (hash-datoms datoms)}
+                                (when keep-history?
+                                  {:temporal-eavt (ha/<? (di/empty-index index :eavt))
+                                   :temporal-aevt (ha/<? (di/empty-index index :aevt))
+                                   :temporal-avet (ha/<? (di/empty-index index :avet))})))))))
 
 (defn- equiv-db-index [x y]
   (loop [xs (seq x)
