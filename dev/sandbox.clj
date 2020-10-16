@@ -4,13 +4,19 @@
             [hitchhiker.tree.utils.clojure.async :as ha]))
 
 
+(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}, 
+               :initial-es [#:db{:ident :name, :cardinality :db.cardinality/one, :index true, :unique :db.unique/identity, :valueType :db.type/string} #:db{:ident :sibling, :cardinality :db.cardinality/many, :valueType :db.type/ref} #:db{:ident :age, :cardinality :db.cardinality/one, :valueType :db.type/long}]})
 
-(comment 
-  
-  
+
+
+(comment
+
+
   (ha/<?? (db/empty-db))
   (ha/<?? (db/init-db []))
-  
+  (db/transact-tx-data (:initial-report tx-dummy) (:initial-es tx-dummy))
+
+
   ;;
   )
 
