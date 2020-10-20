@@ -93,9 +93,9 @@
             (map (fn [kv]
                    (let [[a b c d] (.key ^AMapEntry kv)]
                      (create-datom a b c d)))))
-        new (->> (sequence xf (hmsg/lookup-fwd-iter tree [a b c d]))
-                 seq)]
-    new))
+        iter-chan (async/chan 1 xf)
+        _ (hmsg/forward-iterator iter-chan tree [a b c d])]
+    (ha/go-try (seq (ha/<? (async/into [] iter-chan))))))
 
 (defn -seq [tree index-type]
   (-slice tree (dd/datom e0 nil nil tx0) (dd/datom emax nil nil txmax) index-type))
