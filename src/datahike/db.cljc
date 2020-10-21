@@ -373,35 +373,36 @@
        nil result))))
 
 (defn temporal-search [^DB db pattern]
-  (async/merge (search-current-indices db pattern)
-               (search-temporal-indices db pattern)))
+  (async/merge [(search-current-indices db pattern)
+                (search-temporal-indices db pattern)]))
 
 (defn temporal-datoms [^DB db index-type cs]
   (let [index (get db index-type)
         temporal-index (get db (keyword (str "temporal-" (name index-type))))
         from (components->pattern db index-type cs e0 tx0)
         to (components->pattern db index-type cs emax txmax)]
-    (concat (ha/<?? (-slice index from to index-type))
-            (ha/<?? (-slice temporal-index from to index-type)))))
+    (async/merge [(-slice index from to index-type)
+                  (-slice temporal-index from to index-type)])))
 
 (defn temporal-seek-datoms [^DB db index-type cs]
   (let [index (get db index-type)
         temporal-index (get db (keyword (str "temporal-" (name index-type))))
         from (components->pattern db index-type cs e0 tx0)
         to (datom emax nil nil txmax)]
-    (concat (ha/<?? (-slice index from to index-type))
-            (ha/<?? (-slice temporal-index from to index-type)))))
+    (async/merge [(-slice index from to index-type)
+                  (-slice temporal-index from to index-type)])))
 
 (defn temporal-rseek-datoms [^DB db index-type cs]
   (let [index (get db index-type)
         temporal-index (get db (keyword (str "temporal-" (name index-type))))
         from (components->pattern db index-type cs e0 tx0)
         to (datom emax nil nil txmax)]
-    (concat
-     (-> (concat (ha/<?? (-slice index from to index-type))
-                 (ha/<?? (-slice temporal-index from to index-type)))
-         vec
-         rseq))))
+    (ha/go-try
+     (concat
+      (-> (ha/<? (async/merge [(-slice index from to index-type)
+                               (-slice temporal-index from to index-type)]))
+          vec
+          rseq)))))
 
 (defn temporal-index-range [^DB db current-db attr start end]
   (when-not (indexing? db attr)
@@ -409,9 +410,9 @@
   (validate-attr attr (list '-index-range 'db attr start end) db)
   (let [from (resolve-datom current-db nil attr start nil e0 tx0)
         to (resolve-datom current-db nil attr end nil emax txmax)]
-    (concat
-     (ha/<?? (-slice (get db :avet) from to :avet))
-     (ha/<?? (-slice (get db :temporal-avet) from to :avet)))))
+    (async/merge
+     [(-slice (get db :avet) from to :avet)
+      (-slice (get db :temporal-avet) from to :avet)])))
 
 (defrecord-updatable HistoricalDB [origin-db]
   #?@(:cljs
@@ -465,24 +466,26 @@
            (temporal-search (.-origin-db db) pattern))
   
   IIndexAccess
-  (-datoms [db index-type cs] (temporal-datoms (.-origin-db db) index-type cs))
+  (-datoms [db index-type cs] (ha/<?? (temporal-datoms (.-origin-db db) index-type cs)))
 
-  (-seek-datoms [db index-type cs] (temporal-seek-datoms (.-origin-db db) index-type cs))
+  (-seek-datoms [db index-type cs] (ha/<?? (temporal-seek-datoms (.-origin-db db) index-type cs)))
 
-  (-rseek-datoms [db index-type cs] (temporal-rseek-datoms (.-origin-db db) index-type cs))
+  (-rseek-datoms [db index-type cs] (ha/<?? (temporal-rseek-datoms (.-origin-db db) index-type cs)))
 
-  (-index-range [db attr start end] (temporal-index-range (.-origin-db db) db attr start end)))
+  (-index-range [db attr start end] (ha/<?? (temporal-index-range (.-origin-db db) db attr start end))))
 
 (defn filter-txInstant [datoms pred db]
-  (into #{}
-        (comp
-         (map datom-tx)
-         (distinct)
-         (mapcat (fn [tx] (temporal-datoms db :eavt [tx])))
-         (keep (fn [^Datom d]
-                 (when (and (= :db/txInstant (.-a d)) (pred d))
-                   (.-e d)))))
-        datoms))
+  (ha/<?? 
+   (ha/go-try
+    (into #{}
+          (comp
+           (map datom-tx)
+           (distinct)
+           (mapcat (fn [tx] (ha/<? (temporal-datoms db :eavt [tx]))))
+           (keep (fn [^Datom d]
+                   (when (and (= :db/txInstant (.-a d)) (pred d))
+                     (.-e d)))))
+          datoms))))
 
 (defn get-current-values [rschema datoms]
   (->> datoms
@@ -569,22 +572,22 @@
   IIndexAccess
   (-datoms [db index-type cs]
            (let [origin-db (.-origin-db db)]
-             (-> (temporal-datoms origin-db index-type cs)
+             (-> (ha/<?? (temporal-datoms origin-db index-type cs))
                  (filter-as-of-datoms (.-time-point db) origin-db))))
 
   (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (-> (temporal-seek-datoms origin-db index-type cs)
+                  (-> (ha/<?? (temporal-seek-datoms origin-db index-type cs))
                       (filter-as-of-datoms (.-time-point db) origin-db))))
 
   (-rseek-datoms [db index-type cs]
                  (let [origin-db (.-origin-db db)]
-                   (-> (temporal-rseek-datoms origin-db index-type cs)
+                   (-> (ha/<?? (temporal-rseek-datoms origin-db index-type cs))
                        (filter-as-of-datoms (.-time-point db) origin-db))))
 
   (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (-> (temporal-index-range origin-db db attr start end)
+                  (-> (ha/<?? (temporal-index-range origin-db db attr start end))
                       (filter-as-of-datoms (.-time-point db) origin-db)))))
 
 (defn- filter-since [datoms time-point db]
@@ -663,22 +666,22 @@
   IIndexAccess
   (-datoms [db index-type cs]
            (let [origin-db (.-origin-db db)]
-             (-> (temporal-datoms origin-db index-type cs)
+             (-> (ha/<?? (temporal-datoms origin-db index-type cs))
                  (filter-since (.-time-point db) origin-db))))
 
   (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (-> (temporal-seek-datoms origin-db index-type cs)
+                  (-> (ha/<?? (temporal-seek-datoms origin-db index-type cs))
                       (filter-since (.-time-point db) origin-db))))
 
   (-rseek-datoms [db index-type cs]
                  (let [origin-db (.-origin-db db)]
-                   (-> (temporal-rseek-datoms origin-db index-type cs)
+                   (-> (ha/<?? (temporal-rseek-datoms origin-db index-type cs))
                        (filter-since (.-time-point db) origin-db))))
 
   (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (-> (temporal-index-range origin-db db attr start end)
+                  (-> (ha/<?? (temporal-index-range origin-db db attr start end))
                       (filter-since (.-time-point db) origin-db)))))
 
 ;; ----------------------------------------------------------------------------
