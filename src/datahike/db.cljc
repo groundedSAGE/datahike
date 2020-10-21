@@ -382,7 +382,7 @@
         from (components->pattern db index-type cs e0 tx0)
         to (components->pattern db index-type cs emax txmax)]
     (async/merge [(-slice index from to index-type)
-                  (-slice temporal-index from to index-type)])))
+                  (-slice temporal-index from to index-type)]))) ; TODO: check that this works as a replacement for concat
 
 (defn temporal-seek-datoms [^DB db index-type cs]
   (let [index (get db index-type)
@@ -1230,30 +1230,33 @@
 
 (defn- upsert-eid [db entity]
   (when-let [idents (not-empty (-attrs-by db :db.unique/identity))]
-    (->>
-     (reduce-kv
-      (fn [acc a v]                                       ;; acc = [e a v]
-        (if (contains? idents a)
-          (do
-            (validate-val v [nil nil a v nil] db)
-            (if-some [e (:e (first (ha/<?? (-datoms db :avet [a v]))))]
-              (cond
-                (nil? acc) [e a v]                        ;; first upsert
-                (= (get acc 0) e) acc                     ;; second+ upsert, but does not conflict
-                :else
-                (let [[_e _a _v] acc]
-                  (raise "Conflicting upserts: " [_a _v] " resolves to " _e
-                         ", but " [a v] " resolves to " e
-                         {:error     :transact/upsert
-                          :entity    entity
-                          :assertion [e a v]
-                          :conflict  [_e _a _v]})))
-              acc))                                       ;; upsert attr, but resolves to nothing
-          acc))                                           ;; non-upsert attr
-      nil
-      entity)
-     (check-upsert-conflict entity)
-     first)))                                              ;; getting eid from acc
+    (ha/go-try
+     (->>
+      (ha/reduce<
+       (fn [acc [a v]]                                       ;; acc = [e a v]
+         (ha/go-try
+          (if (contains? idents a)
+            (do
+              (validate-val v [nil nil a v nil] db)
+              (if-some [e (:e (first (ha/<? (-datoms db :avet [a v]))))]
+                (cond
+                  (nil? acc) [e a v]                        ;; first upsert
+                  (= (get acc 0) e) acc                     ;; second+ upsert, but does not conflict
+                  :else
+                  (let [[_e _a _v] acc]
+                    (raise "Conflicting upserts: " [_a _v] " resolves to " _e
+                           ", but " [a v] " resolves to " e
+                           {:error     :transact/upsert
+                            :entity    entity
+                            :assertion [e a v]
+                            :conflict  [_e _a _v]})))
+                acc))                                       ;; upsert attr, but resolves to nothing
+            acc)))                                           ;; non-upsert attr
+       nil
+       entity)
+      (ha/<?)
+      (check-upsert-conflict entity)
+      first))))                                              ;; getting eid from acc
 
 
 ;; multivals/reverse can be specified as coll or as a single value, trying to guess
@@ -1438,7 +1441,7 @@
                        (cons (assoc entity :db/id id) entities)))
 
             ;; upserted => explode | error
-              :let [upserted-eid (upsert-eid db entity)]
+              :let [upserted-eid (ha/<? (upsert-eid db entity))]
 
               (some? upserted-eid)
               (if (and (tempid? old-eid)
