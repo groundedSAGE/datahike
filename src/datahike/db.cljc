@@ -244,10 +244,10 @@
 
   IIndexAccess
   (-datoms [db index-type cs]
-           (ha/<?? (-slice (get db index-type)
-                           (components->pattern db index-type cs e0 tx0)
-                           (components->pattern db index-type cs emax txmax)
-                           index-type)))
+           (-slice (get db index-type)
+                   (components->pattern db index-type cs e0 tx0)
+                   (components->pattern db index-type cs emax txmax)
+                   index-type))
 
   (-seek-datoms [db index-type cs]
                 (ha/<?? (-slice (get db index-type)
@@ -290,8 +290,8 @@
 (defrecord-updatable FilteredDB [unfiltered-db pred]
   #?@(:cljs
       [IEquiv (-equiv [db other] (equiv-db db other))
-       ISeqable (-seq [db] (-datoms db :eavt []))
-       ICounted (-count [db] (count (-datoms db :eavt [])))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
 
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on FilteredDB")))
@@ -305,12 +305,12 @@
 
       :clj
       [clojure.lang.IPersistentCollection
-       (count [db] (count (-datoms db :eavt [])))
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
        (equiv [db o] (equiv-db db o))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on FilteredDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on FilteredDB")))
 
-       clojure.lang.Seqable (seq [db] (-datoms db :eavt []))
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
        clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on FilteredDB")))
        (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on FilteredDB")))
@@ -416,8 +416,8 @@
 (defrecord-updatable HistoricalDB [origin-db]
   #?@(:cljs
       [IEquiv (-equiv [db other] (equiv-db db other))
-       ISeqable (-seq [db] (-datoms db :eavt []))
-       ICounted (-count [db] (count (-datoms db :eavt [])))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
 
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on HistoricalDB")))
@@ -430,12 +430,12 @@
        (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on HistoricalDB")))]
       :clj
       [clojure.lang.IPersistentCollection
-       (count [db] (count (-datoms db :eavt [])))
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
        (equiv [db o] (equiv-db db o))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on HistoricalDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on HistoricalDB")))
 
-       clojure.lang.Seqable (seq [db] (-datoms db :eavt []))
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
        clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on HistoricalDB")))
        (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on HistoricalDB")))
@@ -462,8 +462,8 @@
 
   ISearch
   (-search [db pattern]
-           (ha/<?? (temporal-search (.-origin-db db) pattern)))
-
+           (temporal-search (.-origin-db db) pattern))
+  
   IIndexAccess
   (-datoms [db index-type cs] (temporal-datoms (.-origin-db db) index-type cs))
 
@@ -515,8 +515,8 @@
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
       [IEquiv (-equiv [db other] (equiv-db db other))
-       ISeqable (-seq [db] (-datoms db :eavt []))
-       ICounted (-count [db] (count (-datoms db :eavt [])))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
 
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on AsOfDB")))
@@ -529,12 +529,12 @@
        (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on AsOfDB")))]
       :clj
       [clojure.lang.IPersistentCollection
-       (count [db] (count (-datoms db :eavt [])))
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
        (equiv [db o] (equiv-db db o))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on AsOfDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on AsOfDB")))
 
-       clojure.lang.Seqable (seq [db] (-datoms db :eavt []))
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
        clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on AsOfDB")))
        (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on AsOfDB")))
@@ -563,8 +563,8 @@
   ISearch
   (-search [db pattern]
            (let [origin-db (.-origin-db db)]
-             (-> (ha/<?? (temporal-search origin-db pattern))
-                 (filter-as-of-datoms (.-time-point db) origin-db))))
+             (ha/go-try (-> (ha/<? (temporal-search origin-db pattern))
+                            (filter-as-of-datoms (.-time-point db) origin-db)))))
 
   IIndexAccess
   (-datoms [db index-type cs]
@@ -609,8 +609,8 @@
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
       [IEquiv (-equiv [db other] (equiv-db db other))
-       ISeqable (-seq [db] (-datoms db :eavt []))
-       ICounted (-count [db] (count (-datoms db :eavt [])))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
 
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on SinceDB")))
@@ -623,12 +623,12 @@
        (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on SinceDB")))]
       :clj
       [clojure.lang.IPersistentCollection
-       (count [db] (count (-datoms db :eavt [])))
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
        (equiv [db o] (equiv-db db o))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on SinceDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on SinceDB")))
 
-       clojure.lang.Seqable (seq [db] (-datoms db :eavt []))
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
        clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on SinceDB")))
        (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on SinceDB")))
@@ -657,8 +657,8 @@
   ISearch
   (-search [db pattern]
            (let [origin-db (.-origin-db db)]
-             (-> (ha/<?? (temporal-search origin-db pattern))
-                 (filter-since (.-time-point db) origin-db))))
+             (ha/go-try (-> (ha/<? (temporal-search origin-db pattern))
+                            (filter-since (.-time-point db) origin-db)))))
 
   IIndexAccess
   (-datoms [db index-type cs]
@@ -837,7 +837,7 @@
 (defn- equiv-db [db other]
   (and (or (instance? DB other) (instance? FilteredDB other))
        (= (-schema db) (-schema other))
-       (equiv-db-index (-datoms db :eavt []) (-datoms other :eavt []))))
+       (equiv-db-index (ha/<?? (-datoms db :eavt [])) (ha/<?? (-datoms other :eavt [])))))
 
 #?(:cljs
    (defn pr-db [db w opts]
@@ -971,12 +971,12 @@
         (nil? value)
         nil
         :else
-        (-> (-datoms db :avet eid) first :e)))
+        (-> (ha/<?? (-datoms db :avet eid)) first :e)))
 
     #?@(:cljs [(array? eid) (recur db (array-seq eid))])
 
     (keyword? eid)
-    (-> (-datoms db :avet [:db/ident eid]) first :e)
+    (-> (ha/<?? (-datoms db :avet [:db/ident eid])) first :e)
 
     :else
     (raise "Expected number or lookup ref for entity id, got " eid
@@ -1026,7 +1026,7 @@
 (defn validate-datom [db ^Datom datom]
   (when (and (datom-added datom)
              (is-attr? db (.-a datom) :db/unique))
-    (when-let [found (not-empty (-datoms db :avet [(.-a datom) (.-v datom)]))]
+    (when-let [found (not-empty (ha/<?? (-datoms db :avet [(.-a datom) (.-v datom)])))]
       (raise "Cannot add " datom " because of unique constraint: " found
              {:error     :transact/unique
               :attribute (.-a datom)
@@ -1229,7 +1229,7 @@
         (if (contains? idents a)
           (do
             (validate-val v [nil nil a v nil] db)
-            (if-some [e (:e (first (-datoms db :avet [a v])))]
+            (if-some [e (:e (first (ha/<?? (-datoms db :avet [a v]))))]
               (cond
                 (nil? acc) [e a v]                        ;; first upsert
                 (= (get acc 0) e) acc                     ;; second+ upsert, but does not conflict
@@ -1539,7 +1539,7 @@
 
                (tempid? e)
                (let [upserted-eid (when (is-attr? db a :db.unique/identity)
-                                    (:e (first (-datoms db :avet [a v]))))
+                                    (:e (first (ha/<?? (-datoms db :avet [a v])))))
                      allocated-eid (get tempids e)]
                  (if (and upserted-eid allocated-eid (not= upserted-eid allocated-eid))
                    (retry-with-tempid initial-report report initial-es e upserted-eid)
