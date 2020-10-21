@@ -1,5 +1,6 @@
 (ns sandbox
   (:require [datahike.api :as d]
+            [datahike.query :as q]
             [datahike.db :as db]
             [hitchhiker.tree.utils.clojure.async :as ha]))
 
@@ -21,6 +22,25 @@
   
   (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy))
 
+  (defn with
+    "Same as [[transact!]], but applies to an immutable database value. Returns transaction report (see [[transact!]])."
+    ([db tx-data] (with db tx-data nil))
+    ([db tx-data tx-meta]
+     {:pre [(db/db? db)]}
+     (db/transact-tx-data (db/map->TxReport
+                           {:db-before db
+                            :db-after  db
+                            :tx-data   []
+                            :tempids   {}
+                            :tx-meta   tx-meta}) tx-data)))
+  
+  (def bob-db (:db-after (with (ha/<?? (db/empty-db)) [{:name "bob" :age 90}])))
+  
+  (q/q '[:find ?a :where 
+         [?e :name "bob"]
+         [?e :age ?a]]
+       bob-db)
+  
   
   
   ;(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}
