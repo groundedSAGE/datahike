@@ -474,18 +474,22 @@
 
   (-index-range [db attr start end] (ha/<?? (temporal-index-range (.-origin-db db) db attr start end))))
 
-(defn filter-txInstant [datoms pred db]
+(defn filter-txInstant [datoms pred db]  ; TODO: was a transducer before. May want to keep the transducer for JVM
   (ha/<?? 
    (ha/go-try
-    (into #{}
-          (comp
-           (map datom-tx)
-           (distinct)
-           (mapcat (fn [tx] (ha/<? (temporal-datoms db :eavt [tx]))))
-           (keep (fn [^Datom d]
-                   (when (and (= :db/txInstant (.-a d)) (pred d))
-                     (.-e d)))))
-          datoms))))
+     (->> datoms
+          (map datom-tx)
+          (distinct)
+          (map (fn [tx] (temporal-datoms db :eavt [tx])))
+          (async/merge)
+          (async/into [])
+          (ha/<?)
+          (apply concat)
+          (keep (fn [^Datom d]
+                  (when (and (= :db/txInstant (.-a d)) (pred d))
+                    (.-e d))))
+          
+          (into #{})))))
 
 (defn get-current-values [rschema datoms]
   (->> datoms
@@ -1542,7 +1546,7 @@
 
                (tempid? e)
                (let [upserted-eid (when (is-attr? db a :db.unique/identity)
-                                    (:e (first (ha/<?? (-datoms db :avet [a v])))))
+                                    (:e (first (ha/<? (-datoms db :avet [a v])))))
                      allocated-eid (get tempids e)]
                  (if (and upserted-eid allocated-eid (not= upserted-eid allocated-eid))
                    (retry-with-tempid initial-report report initial-es e upserted-eid)
@@ -1621,7 +1625,7 @@
                (= op :db.history.purge/before)
                (if (-keep-history? db)
                  (let [history (HistoricalDB. db)
-                       e-datoms (-> (ha/<?? (search-temporal-indices db nil))
+                       e-datoms (-> (ha/<? (search-temporal-indices db nil))
                                     vec
                                     (filter-before e db)
                                     vec)
