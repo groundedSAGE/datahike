@@ -203,7 +203,7 @@
 (defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
   #?@(:cljs
       [IHash (-hash [db] hash)
-       IEquiv (-equiv [db other] (equiv-db db other))
+       IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
        ISeqable (-seq [db] (-seq (.-eavt db)))
        IReversible (-rseq [db] (-rseq (.-eavt db)))
        ICounted (-count [db] (count (.-eavt db)))
@@ -219,7 +219,7 @@
        clojure.lang.Seqable (seq [db] (-seq eavt))
        clojure.lang.IPersistentCollection
        (count [db] (-count eavt))
-       (equiv [db other] (equiv-db db other))
+       (equiv [db other] (ha/<?? (equiv-db db other)))
        (empty [db] (empty-db schema))
        clojure.lang.IEditableCollection
        (asTransient [db] (db-transient db))
@@ -289,7 +289,7 @@
 ;; ----------------------------------------------------------------------------
 (defrecord-updatable FilteredDB [unfiltered-db pred]
   #?@(:cljs
-      [IEquiv (-equiv [db other] (equiv-db db other))
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
        ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
        ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
@@ -306,7 +306,7 @@
       :clj
       [clojure.lang.IPersistentCollection
        (count [db] (count (ha/<?? (-datoms db :eavt []))))
-       (equiv [db o] (equiv-db db o))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on FilteredDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on FilteredDB")))
 
@@ -432,7 +432,7 @@
       :clj
       [clojure.lang.IPersistentCollection
        (count [db] (count (ha/<?? (-datoms db :eavt []))))
-       (equiv [db o] (equiv-db db o))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on HistoricalDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on HistoricalDB")))
 
@@ -521,7 +521,7 @@
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
-      [IEquiv (-equiv [db other] (equiv-db db other))
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
        ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
        ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
@@ -537,7 +537,7 @@
       :clj
       [clojure.lang.IPersistentCollection
        (count [db] (count (ha/<?? (-datoms db :eavt []))))
-       (equiv [db o] (equiv-db db o))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on AsOfDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on AsOfDB")))
 
@@ -615,7 +615,7 @@
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
-      [IEquiv (-equiv [db other] (equiv-db db other))
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
        ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
        ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
@@ -631,7 +631,7 @@
       :clj
       [clojure.lang.IPersistentCollection
        (count [db] (count (ha/<?? (-datoms db :eavt []))))
-       (equiv [db o] (equiv-db db o))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on SinceDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on SinceDB")))
 
@@ -842,9 +842,10 @@
   (reduce #(+ %1 (hash %2)) 0 datoms))
 
 (defn- equiv-db [db other]
-  (and (or (instance? DB other) (instance? FilteredDB other))
-       (= (-schema db) (-schema other))
-       (equiv-db-index (ha/<?? (-datoms db :eavt [])) (ha/<?? (-datoms other :eavt [])))))
+  (ha/go-try
+   (and (or (instance? DB other) (instance? FilteredDB other))
+        (= (-schema db) (-schema other))
+        (equiv-db-index (ha/<? (-datoms db :eavt [])) (ha/<? (-datoms other :eavt []))))))
 
 #?(:cljs
    (defn pr-db [db w opts]
