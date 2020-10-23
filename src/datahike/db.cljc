@@ -475,21 +475,20 @@
   (-index-range [db attr start end] (ha/<?? (temporal-index-range (.-origin-db db) db attr start end))))
 
 (defn filter-txInstant [datoms pred db]  ; TODO: was a transducer before. May want to keep the transducer for JVM
-  (ha/<?? 
-   (ha/go-try
-     (->> datoms
-          (map datom-tx)
-          (distinct)
-          (map (fn [tx] (temporal-datoms db :eavt [tx])))
-          (async/merge)
-          (async/into [])
-          (ha/<?)
-          (apply concat)
-          (keep (fn [^Datom d]
-                  (when (and (= :db/txInstant (.-a d)) (pred d))
-                    (.-e d))))
-          
-          (into #{})))))
+  (ha/go-try
+   (->> datoms
+        (map datom-tx)
+        (distinct)
+        (map (fn [tx] (temporal-datoms db :eavt [tx])))
+        (async/merge)
+        (async/into [])
+        (ha/<?)
+        (apply concat)
+        (keep (fn [^Datom d]
+                (when (and (= :db/txInstant (.-a d)) (pred d))
+                  (.-e d))))
+        
+        (into #{}))))
 
 (defn get-current-values [rschema datoms]
   (->> datoms
@@ -509,15 +508,16 @@
      :clj  (instance? Date d)))
 
 (defn filter-as-of-datoms [datoms time-point db]
-  (let [as-of-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.before ^Date (.-v d) ^Date time-point)
-                       (<= (dd/datom-tx d) time-point)))
-        filtered-tx-ids (filter-txInstant datoms as-of-pred db)
-        filtered-datoms (->> datoms
-                             (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
-                             (get-current-values (-rschema db)))]
-    filtered-datoms))
+  (ha/go-try 
+   (let [as-of-pred (fn [^Datom d]
+                      (if (date? time-point)
+                        (.before ^Date (.-v d) ^Date time-point)
+                        (<= (dd/datom-tx d) time-point)))
+         filtered-tx-ids (ha/<? (filter-txInstant datoms as-of-pred db))
+         filtered-datoms (->> datoms
+                              (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
+                              (get-current-values (-rschema db)))]
+     filtered-datoms)))
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
@@ -571,47 +571,61 @@
   (-search [db pattern]
            (let [origin-db (.-origin-db db)]
              (ha/go-try (-> (ha/<? (temporal-search origin-db pattern))
-                            (filter-as-of-datoms (.-time-point db) origin-db)))))
+                            (filter-as-of-datoms (.-time-point db) origin-db)
+                            (ha/<?)))))
 
   IIndexAccess
   (-datoms [db index-type cs]
            (let [origin-db (.-origin-db db)]
-             (-> (ha/<?? (temporal-datoms origin-db index-type cs))
-                 (filter-as-of-datoms (.-time-point db) origin-db))))
+             (ha/go-try
+              (-> (ha/<? (temporal-datoms origin-db index-type cs))
+                  (filter-as-of-datoms (.-time-point db) origin-db)
+                  (ha/<?)))))
 
   (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (-> (ha/<?? (temporal-seek-datoms origin-db index-type cs))
-                      (filter-as-of-datoms (.-time-point db) origin-db))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
+                        (filter-as-of-datoms (.-time-point db) origin-db)
+                        (ha/<?))))))
 
   (-rseek-datoms [db index-type cs]
                  (let [origin-db (.-origin-db db)]
-                   (-> (ha/<?? (temporal-rseek-datoms origin-db index-type cs))
-                       (filter-as-of-datoms (.-time-point db) origin-db))))
+                   (ha/<??
+                    (ha/go-try
+                     (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                         (filter-as-of-datoms (.-time-point db) origin-db)
+                         (ha/<?))))))
 
   (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (-> (ha/<?? (temporal-index-range origin-db db attr start end))
-                      (filter-as-of-datoms (.-time-point db) origin-db)))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-index-range origin-db db attr start end))
+                        (filter-as-of-datoms (.-time-point db) origin-db)
+                        (ha/<?)))))))
 
 (defn- filter-since [datoms time-point db]
-  (let [since-pred (fn [^Datom d]
-                     (if (date? time-point)
-                       (.after ^Date (.-v d) ^Date time-point)
-                       (>= (.-tx d) time-point)))
-        filtered-tx-ids (filter-txInstant datoms since-pred db)]
-    (->> datoms
-         (filter datom-added)
-         (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d)))))))
+  (ha/go-try
+   (let [since-pred (fn [^Datom d]
+                      (if (date? time-point)
+                        (.after ^Date (.-v d) ^Date time-point)
+                        (>= (.-tx d) time-point)))
+         filtered-tx-ids (ha/<? (filter-txInstant datoms since-pred db))]
+     (->> datoms
+          (filter datom-added)
+          (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))))))
 
 (defn- filter-before [datoms ^Date before-date db]
-  (let [before-pred (fn [^Datom d]
-                      (.before ^Date (.-v d) before-date))
-        filtered-tx-ids (filter-txInstant datoms before-pred db)]
-    (filter
-     (fn [^Datom d]
-       (contains? filtered-tx-ids (datom-tx d)))
-     datoms)))
+  (ha/go-try
+   (let [before-pred (fn [^Datom d]
+                       (.before ^Date (.-v d) before-date))
+         filtered-tx-ids (ha/<? (filter-txInstant datoms before-pred db))]
+     (filter
+      (fn [^Datom d]
+        (contains? filtered-tx-ids (datom-tx d)))
+      datoms))))
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
@@ -665,28 +679,40 @@
   (-search [db pattern]
            (let [origin-db (.-origin-db db)]
              (ha/go-try (-> (ha/<? (temporal-search origin-db pattern))
-                            (filter-since (.-time-point db) origin-db)))))
+                            (filter-since (.-time-point db) origin-db)
+                            (ha/<?)))))
 
   IIndexAccess
   (-datoms [db index-type cs]
            (let [origin-db (.-origin-db db)]
-             (-> (ha/<?? (temporal-datoms origin-db index-type cs))
-                 (filter-since (.-time-point db) origin-db))))
+             (ha/go-try
+              (-> (ha/<? (temporal-datoms origin-db index-type cs))
+                  (filter-since (.-time-point db) origin-db)
+                  (ha/<?)))))
 
   (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (-> (ha/<?? (temporal-seek-datoms origin-db index-type cs))
-                      (filter-since (.-time-point db) origin-db))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
+                       (filter-since (.-time-point db) origin-db)
+                        (ha/<?))))))
 
   (-rseek-datoms [db index-type cs]
                  (let [origin-db (.-origin-db db)]
-                   (-> (ha/<?? (temporal-rseek-datoms origin-db index-type cs))
-                       (filter-since (.-time-point db) origin-db))))
+                   (ha/<??
+                    (ha/go-try
+                     (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                        (filter-since (.-time-point db) origin-db)
+                         (ha/<?))))))
 
   (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (-> (ha/<?? (temporal-index-range origin-db db attr start end))
-                      (filter-since (.-time-point db) origin-db)))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-index-range origin-db db attr start end))
+                        (filter-since (.-time-point db) origin-db)
+                        (ha/<?)))))))
 
 ;; ----------------------------------------------------------------------------
 
@@ -920,12 +946,12 @@
 (defn- resolve-datom [db e a v t default-e default-tx]
   (when a (validate-attr a (list 'resolve-datom 'db e a v t) db))
   (datom
-   (or (entid-some db e) default-e)                        ;; e
+   (or (ha/<?? (entid-some db e)) default-e)                        ;; e
    a                                                       ;; a
    (if (and (some? v) (ref? db a))                         ;; v
-     (entid-strict db v)
+     (ha/<?? (entid-strict db v))
      v)
-   (or (entid-some db t) default-tx)))                     ;; t
+   (or (ha/<?? (entid-some db t)) default-tx)))                     ;; t
 
 (defn components->pattern [db index [c0 c1 c2 c3] default-e default-tx]
   (case index
@@ -963,42 +989,45 @@
 
 (defn entid [db eid]
   {:pre [(db? db)]}
-  (cond
-    (and (number? eid) (pos? eid))
-    eid
+  (ha/go-try
+   (cond
+     (and (number? eid) (pos? eid))
+     eid
 
-    (sequential? eid)
-    (let [[attr value] eid]
-      (cond
-        (not= (count eid) 2)
-        (raise "Lookup ref should contain 2 elements: " eid
-               {:error :lookup-ref/syntax, :entity-id eid})
-        (not (is-attr? db attr :db/unique))
-        (raise "Lookup ref attribute should be marked as :db/unique: " eid
-               {:error :lookup-ref/unique, :entity-id eid})
-        (nil? value)
-        nil
-        :else
-        (-> (ha/<?? (-datoms db :avet eid)) first :e)))
+     (sequential? eid)
+     (let [[attr value] eid]
+       (cond
+         (not= (count eid) 2)
+         (raise "Lookup ref should contain 2 elements: " eid
+                {:error :lookup-ref/syntax, :entity-id eid})
+         (not (is-attr? db attr :db/unique))
+         (raise "Lookup ref attribute should be marked as :db/unique: " eid
+                {:error :lookup-ref/unique, :entity-id eid})
+         (nil? value)
+         nil
+         :else
+         (-> (ha/<? (-datoms db :avet eid)) first :e)))
 
-    #?@(:cljs [(array? eid) (recur db (array-seq eid))])
+     #?@(:cljs [(array? eid) (recur db (array-seq eid))])
 
-    (keyword? eid)
-    (-> (ha/<?? (-datoms db :avet [:db/ident eid])) first :e)
+     (keyword? eid)
+     (-> (ha/<? (-datoms db :avet [:db/ident eid])) first :e)
 
-    :else
-    (raise "Expected number or lookup ref for entity id, got " eid
-           {:error :entity-id/syntax, :entity-id eid})))
+     :else
+     (raise "Expected number or lookup ref for entity id, got " eid
+            {:error :entity-id/syntax, :entity-id eid}))))
 
 (defn entid-strict [db eid]
-  (or (entid db eid)
-      (raise "Nothing found for entity id " eid
-             {:error     :entity-id/missing
-              :entity-id eid})))
+  (ha/go-try
+   (or (ha/<? (entid db eid))
+       (raise "Nothing found for entity id " eid
+              {:error     :entity-id/missing
+               :entity-id eid}))))
 
 (defn entid-some [db eid]
-  (when eid
-    (entid-strict db eid)))
+  (ha/go-try
+   (when eid
+     (ha/<? (entid-strict db eid)))))
 
 ;;;;;;;;;; Transacting
 (defn #?@(:clj  [^Boolean reverse-ref?]
@@ -1032,13 +1061,15 @@
            {:error :transact/syntax, :attribute attr})))
 
 (defn validate-datom [db ^Datom datom]
-  (when (and (datom-added datom)
-             (is-attr? db (.-a datom) :db/unique))
-    (when-let [found (not-empty (ha/<?? (-datoms db :avet [(.-a datom) (.-v datom)])))]
-      (raise "Cannot add " datom " because of unique constraint: " found
-             {:error     :transact/unique
-              :attribute (.-a datom)
-              :datom     datom}))))
+  (ha/<??
+   (ha/go-try
+    (when (and (datom-added datom)
+               (is-attr? db (.-a datom) :db/unique))
+      (when-let [found (not-empty (ha/<? (-datoms db :avet [(.-a datom) (.-v datom)])))]
+        (raise "Cannot add " datom " because of unique constraint: " found
+               {:error     :transact/unique
+                :attribute (.-a datom)
+                :datom     datom}))))))
 
 (defn- validate-eid [eid at]
   (when-not (number? eid)
@@ -1315,8 +1346,8 @@
   (validate-val v ent db-after)
   (let [tx (or tx (current-tx report))
         db (:db-after report)
-        e (entid-strict db e)
-        v (if (ref? db a) (entid-strict db v) v)
+        e (ha/<?? (entid-strict db e))
+        v (if (ref? db a) (ha/<?? (entid-strict db v)) v)
         new-datom (datom e a v tx)]
     (ha/<??
      (ha/go-try
@@ -1402,6 +1433,56 @@
     :db.purge/attribute
     :db.history.purge/before})
 
+
+(defn purge [db report entities op entity [e a v]]
+  (async/go
+    (if (-keep-history? db)
+      (let [history (HistoricalDB. db)]
+        (if-some [e (ha/<? (entid history e))]
+          (let [v (if (ref? history a) (ha/<? (entid-strict history v)) v)
+                old-datoms (ha/<? (-search history [e a v]))]
+            [(reduce transact-purge-datom report old-datoms) entities])
+          (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
+      (raise "Purge is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))))
+
+(defn purge-attribute [db report entities op entity [e a _]]
+  (async/go
+    (if (-keep-history? db)
+      (let [history (HistoricalDB. db)]
+        (if-let [e (ha/<? (entid history e))]
+          (let [datoms (vec (ha/<? (-search history [e a])))]
+            [(reduce transact-purge-datom report datoms)
+             (concat (purge-components history datoms) entities)])
+          (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
+      (raise "Purge attribute is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))))
+
+(defn purge-entity [db report entities op entity [e a _]]
+  (if (-keep-history? db)
+    (let [history (HistoricalDB. db)]
+      (if-let [e (ha/<? (entid history e))]
+        (let [e-datoms (vec (ha/<? (-search history [e])))
+              v-datoms (vec (mapcat (fn [a] (ha/<? (-search history [nil a e]))) (-attrs-by history :db.type/ref)))
+              retracted-comps (purge-components history e-datoms)]
+          [(reduce transact-purge-datom report (concat e-datoms v-datoms))
+           (concat retracted-comps entities)])
+        (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
+    (raise "Purge entity is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity})))
+
+(defn purge-before [db report entities op entity [e _ _]]
+  (async/go
+    (if (-keep-history? db)
+      (let [history (HistoricalDB. db)
+            e-datoms (-> (ha/<? (search-temporal-indices db nil))
+                         vec
+                         (filter-before e db)
+                         (ha/<?)
+                         vec)
+            retracted-comps (purge-components history e-datoms)]
+        [(reduce transact-purge-datom report e-datoms)
+         (concat retracted-comps entities)])
+      (raise "Purge entity is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))))
+
+
 (defn transact-tx-data [initial-report initial-es]
   (when-not (or (nil? initial-es)
                 (sequential? initial-es))
@@ -1437,7 +1518,7 @@
 
             ;; lookup-ref => resolved | error
               (sequential? old-eid)
-              (let [id (entid-strict db old-eid)]
+              (let [id (ha/<? (entid-strict db old-eid))]
                 (recur report
                        (cons (assoc entity :db/id id) entities)))
 
@@ -1503,7 +1584,7 @@
 
                (and (keyword? op)
                     (not (builtin-fn? op)))
-               (if-some [ident (entid db op)]
+               (if-some [ident (ha/<? (entid db op))]
                  (let [fun (-> (ha/<? (-search db [ident :db/fn])) first :v)
                        args (next entity)]
                    (if (fn? fun)
@@ -1520,16 +1601,16 @@
                (or (= op :db.fn/cas)
                    (= op :db/cas))
                (let [[_ e a ov nv] entity
-                     e (entid-strict db e)
+                     e (ha/<? (entid-strict db e))
                      _ (validate-attr a entity db)
-                     nv (if (ref? db a) (entid-strict db nv) nv)
+                     nv (if (ref? db a) (ha/<? (entid-strict db nv)) nv)
                      datoms (ha/<? (-search db [e a]))]
                  (if (nil? ov)
                    (if (empty? datoms)
                      (recur (transact-add report [:db/add e a nv]) entities)
                      (raise ":db.fn/cas failed on datom [" e " " a " " (if (multival? db a) (map :v datoms) (:v (first datoms))) "], expected nil"
                             {:error :transact/cas, :old (if (multival? db a) datoms (first datoms)), :expected ov, :new nv}))
-                   (let [ov (if (ref? db a) (entid-strict db ov) ov)
+                   (let [ov (if (ref? db a) (ha/<? (entid-strict db ov)) ov)
                          _ (validate-val nv entity db)]
                      (if (multival? db a)
                        (if (some (fn [^Datom d] (= (.-v d) ov)) datoms)
@@ -1566,8 +1647,8 @@
                (recur (transact-add report entity) entities)
 
                (= op :db/retract)
-               (if-some [e (entid db e)]
-                 (let [v (if (ref? db a) (entid-strict db v) v)]
+               (if-some [e (ha/<? (entid db e))]
+                 (let [v (if (ref? db a) (ha/<? (entid-strict db v)) v)]
                    (validate-attr a entity db)
                    (validate-val v entity db)
                    (if-some [old-datom (first (ha/<? (-search db [e a v])))]
@@ -1577,7 +1658,7 @@
                  (recur report entities))
 
                (= op :db.fn/retractAttribute)
-               (if-let [e (entid db e)]
+               (if-let [e (ha/<? (entid db e))]
                  (let [_ (validate-attr a entity db)
                        datoms (vec (ha/<? (-search db [e a])))]
                    (recur (reduce transact-retract-datom report datoms)
@@ -1586,7 +1667,7 @@
 
                (or (= op :db.fn/retractEntity)
                    (= op :db/retractEntity))
-               (if-let [e (entid db e)]
+               (if-let [e (ha/<? (entid db e))]
                  (let [e-datoms (vec (ha/<? (-search db [e])))
                        v-datoms (vec (mapcat (fn [a] (ha/<? (-search db [nil a e]))) (-attrs-by db :db.type/ref)))
                        retracted-comps (retract-components db e-datoms)]
@@ -1595,48 +1676,21 @@
                  (recur report entities))
 
                (= op :db/purge)
-               (if (-keep-history? db)
-                 (let [history (HistoricalDB. db)]
-                   (if-some [e (entid history e)]
-                     (let [v (if (ref? history a) (entid-strict history v) v)
-                           old-datoms (ha/<? (-search history [e a v]))]
-                       (recur (reduce transact-purge-datom report old-datoms) entities))
-                     (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
-                 (raise "Purge is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))
-
+               (when-let [[report es] (purge db report entities op entity [e a v])]
+                 (recur report es))
+       
                (= op :db.purge/attribute)
-               (if (-keep-history? db)
-                 (let [history (HistoricalDB. db)]
-                   (if-let [e (entid history e)]
-                     (let [datoms (vec (ha/<? (-search history [e a])))]
-                       (recur (reduce transact-purge-datom report datoms)
-                              (concat (purge-components history datoms) entities)))
-                     (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
-                 (raise "Purge attribute is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))
-
+               (when-let [[report es] (purge-entity db report entities op entity [e a v])]
+                 (recur report es))
+               
                (= op :db.purge/entity)
-               (if (-keep-history? db)
-                 (let [history (HistoricalDB. db)]
-                   (if-let [e (entid history e)]
-                     (let [e-datoms (vec (ha/<? (-search history [e])))
-                           v-datoms (vec (mapcat (fn [a] (ha/<? (-search history [nil a e]))) (-attrs-by history :db.type/ref)))
-                           retracted-comps (purge-components history e-datoms)]
-                       (recur (reduce transact-purge-datom report (concat e-datoms v-datoms))
-                              (concat retracted-comps entities)))
-                     (raise "Can't find entity with ID " e " to be purged" {:error :transact/purge, :operation op, :tx-data entity})))
-                 (raise "Purge entity is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))
+               (when-let [[report es] (purge-entity db report entities op entity [e a v])]
+                 (recur report es))
 
                (= op :db.history.purge/before)
-               (if (-keep-history? db)
-                 (let [history (HistoricalDB. db)
-                       e-datoms (-> (ha/<? (search-temporal-indices db nil))
-                                    vec
-                                    (filter-before e db)
-                                    vec)
-                       retracted-comps (purge-components history e-datoms)]
-                   (recur (reduce transact-purge-datom report e-datoms)
-                          (concat retracted-comps entities)))
-                 (raise "Purge entity is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))
+               (when-let [[report es] (purge-before db report entities op entity [e a v])]
+                 (recur report es))
+
 
             ;; assert required attributes
                (= op :db.ensure/attrs)
