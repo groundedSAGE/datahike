@@ -462,14 +462,13 @@
 
 (defn lookup-pattern-db [db pattern]
   ;; TODO optimize with bound attrs min/max values here
-  (ha/<?? 
-   (ha/go-try 
-           (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
-                 datoms (ha/<? (db/-search db search-pattern))
-                 attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
-                                 (filter (fn [[s _]] (free-var? s)))
-                                 (into {}))]
-             (Relation. attr->prop datoms)))))
+  (ha/go-try 
+   (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
+         datoms (ha/<? (db/-search db search-pattern))
+         attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
+                         (filter (fn [[s _]] (free-var? s)))
+                         (into {}))]
+     (Relation. attr->prop datoms))))
 
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
@@ -495,11 +494,12 @@
     (concat ['$] clause)))
 
 (defn lookup-pattern [source pattern]
-  (cond
-    (satisfies? db/ISearch source)
-    (lookup-pattern-db source pattern)
-    :else
-    (lookup-pattern-coll source pattern)))
+  (ha/go-try
+   (cond
+     (satisfies? db/ISearch source)
+     (ha/<? (lookup-pattern-db source pattern))
+     :else
+     (lookup-pattern-coll source pattern))))
 
 (defn collapse-rels [rels new-rel]
   (loop [rels rels
@@ -585,6 +585,7 @@
                     (Reflector/prepRet (.getReturnType method) (.invoke method this (into-array Object args))))))))))
 
 (defn filter-by-pred [context clause]
+  ;; TODO: built-ins -get-some and -get-else return a channel. 
   (let [[[f & args]] clause
         pred (or (get built-ins f)
                  (context-resolve-val context f)
@@ -601,6 +602,7 @@
     (update context :rels conj new-rel)))
 
 (defn bind-by-fn [context clause]
+  ;; TODO: built-ins -get-some and -get-else return a channel. 
   (let [[[f & args] out] clause
         binding (dpi/parse-binding out)
         fun (or (get built-ins f)
@@ -678,60 +680,61 @@
      (remove pred guards)]))
 
 (defn solve-rule [context clause]
-  (let [final-attrs (filter free-var? clause)
-        final-attrs-map (zipmap final-attrs (range))
+  (ha/go-try
+   (let [final-attrs (filter free-var? clause)
+         final-attrs-map (zipmap final-attrs (range))
         ;;         clause-cache    (atom {}) ;; TODO
-        solve (fn [prefix-context clauses]
-                (reduce -resolve-clause prefix-context clauses))
-        empty-rels? (fn [context]
-                      (some #(empty? (:tuples %)) (:rels context)))]
-    (loop [stack (list {:prefix-clauses []
-                        :prefix-context context
-                        :clauses        [clause]
-                        :used-args      {}
-                        :pending-guards {}})
-           rel (Relation. final-attrs-map [])]
-      (if-some [frame (first stack)]
-        (let [[clauses [rule-clause & next-clauses]] (split-with #(not (rule? context %)) (:clauses frame))]
-          (if (nil? rule-clause)
+         solve (fn [prefix-context clauses]
+                 (ha/<? (ha/reduce< -resolve-clause prefix-context clauses)))
+         empty-rels? (fn [context]
+                       (some #(empty? (:tuples %)) (:rels context)))]
+     (loop [stack (list {:prefix-clauses []
+                         :prefix-context context
+                         :clauses        [clause]
+                         :used-args      {}
+                         :pending-guards {}})
+            rel (Relation. final-attrs-map [])]
+       (if-some [frame (first stack)]
+         (let [[clauses [rule-clause & next-clauses]] (split-with #(not (rule? context %)) (:clauses frame))]
+           (if (nil? rule-clause)
 
             ;; no rules -> expand, collect, sum
-            (let [context (solve (:prefix-context frame) clauses)
-                  tuples (-collect context final-attrs)
-                  new-rel (Relation. final-attrs-map tuples)]
-              (recur (next stack) (sum-rel rel new-rel)))
+             (let [context (solve (:prefix-context frame) clauses)
+                   tuples (-collect context final-attrs)
+                   new-rel (Relation. final-attrs-map tuples)]
+               (recur (next stack) (sum-rel rel new-rel)))
 
             ;; has rule -> add guards -> check if dead -> expand rule -> push to stack, recur
-            (let [[rule & call-args] rule-clause
-                  guards (rule-gen-guards rule-clause (:used-args frame))
-                  [active-gs pending-gs] (split-guards (concat (:prefix-clauses frame) clauses)
-                                                       (concat guards (:pending-guards frame)))]
-              (if (some #(= % '[(-differ?)]) active-gs)     ;; trivial always false case like [(not= [?a ?b] [?a ?b])]
-
+             (let [[rule & call-args] rule-clause
+                   guards (rule-gen-guards rule-clause (:used-args frame))
+                   [active-gs pending-gs] (split-guards (concat (:prefix-clauses frame) clauses)
+                                                        (concat guards (:pending-guards frame)))]
+               (if (some #(= % '[(-differ?)]) active-gs)     ;; trivial always false case like [(not= [?a ?b] [?a ?b])]
+                 
                 ;; this branch has no data, just drop it from stack
-                (recur (next stack) rel)
+                 (recur (next stack) rel)
 
-                (let [prefix-clauses (concat clauses active-gs)
-                      prefix-context (solve (:prefix-context frame) prefix-clauses)]
-                  (if (empty-rels? prefix-context)
+                 (let [prefix-clauses (concat clauses active-gs)
+                       prefix-context (solve (:prefix-context frame) prefix-clauses)]
+                   (if (empty-rels? prefix-context)
 
                     ;; this branch has no data, just drop it from stack
-                    (recur (next stack) rel)
+                     (recur (next stack) rel)
 
                     ;; need to expand rule to branches
-                    (let [used-args (assoc (:used-args frame) rule
-                                           (conj (get (:used-args frame) rule []) call-args))
-                          branches (expand-rule rule-clause context used-args)]
-                      (recur (concat
-                              (for [branch branches]
-                                {:prefix-clauses prefix-clauses
-                                 :prefix-context prefix-context
-                                 :clauses        (concatv branch next-clauses)
-                                 :used-args      used-args
-                                 :pending-guards pending-gs})
-                              (next stack))
-                             rel))))))))
-        rel))))
+                     (let [used-args (assoc (:used-args frame) rule
+                                            (conj (get (:used-args frame) rule []) call-args))
+                           branches (expand-rule rule-clause context used-args)]
+                       (recur (concat
+                               (for [branch branches]
+                                 {:prefix-clauses prefix-clauses
+                                  :prefix-context prefix-context
+                                  :clauses        (concatv branch next-clauses)
+                                  :used-args      used-args
+                                  :pending-guards pending-gs})
+                               (next stack))
+                              rel))))))))
+         rel)))))
 
 (defn resolve-pattern-lookup-refs [source pattern]
   (if (satisfies? db/IDB source)
@@ -773,94 +776,106 @@
                 :form  form
                 :vars  missing})))))
 
+(defn map<
+  "Maps over a sequence s with a go function go-f."
+  [go-f s]
+  (ha/go-try
+   (loop [res []
+          [f & r] s]
+     (if (seq s) ; TODO: fix reduce in ha namespace
+       (recur (conj res (ha/<? (go-f f))) r)
+       res))))
+
 (defn -resolve-clause
   ([context clause]
    (-resolve-clause context clause clause))
   ([context clause orig-clause]
-   (condp looks-like? clause
-     [[symbol? '*]]                                         ;; predicate [(pred ?a ?b ?c)]
-     (filter-by-pred context clause)
+   (ha/go-try
+    (condp looks-like? clause
+      [[symbol? '*]]                                         ;; predicate [(pred ?a ?b ?c)]
+      (filter-by-pred context clause)
 
-     [[symbol? '*] '_]                                      ;; function [(fn ?a ?b) ?res]
-     (bind-by-fn context clause)
+      [[symbol? '*] '_]                                      ;; function [(fn ?a ?b) ?res]
+      (bind-by-fn context clause)
 
-     [source? '*]                                           ;; source + anything
-     (let [[source-sym & rest] clause]
-       (binding [*implicit-source* (get (:sources context) source-sym)]
-         (-resolve-clause context rest clause)))
+      [source? '*]                                           ;; source + anything
+      (let [[source-sym & rest] clause]
+        (binding [*implicit-source* (get (:sources context) source-sym)]
+          (ha/<? (-resolve-clause context rest clause))))
 
-     '[or *]                                                ;; (or ...)
-     (let [[_ & branches] clause
-           contexts (map #(resolve-clause context %) branches)
-           rels (map #(reduce hash-join (:rels %)) contexts)]
-       (assoc (first contexts) :rels [(reduce sum-rel rels)]))
+      '[or *]                                                ;; (or ...)
+      (let [[_ & branches] clause
+            contexts (ha/<? (map< #(resolve-clause context %) branches))
+            rels (map #(reduce hash-join (:rels %)) contexts)]
+        (assoc (first contexts) :rels [(reduce sum-rel rels)]))
 
-     '[or-join [[*] *] *]                                   ;; (or-join [[req-vars] vars] ...)
-     (let [[_ [req-vars & vars] & branches] clause]
-       (check-bound context req-vars orig-clause)
-       (recur context (list* 'or-join (concat req-vars vars) branches) clause))
+      '[or-join [[*] *] *]                                   ;; (or-join [[req-vars] vars] ...)
+      (let [[_ [req-vars & vars] & branches] clause]
+        (check-bound context req-vars orig-clause)
+        (ha/<? (-resolve-clause context (list* 'or-join (concat req-vars vars) branches) clause)))
 
-     '[or-join [*] *]                                       ;; (or-join [vars] ...)
+      '[or-join [*] *]                                       ;; (or-join [vars] ...)
      ;; TODO required vars
-     (let [[_ vars & branches] clause
-           vars (set vars)
-           join-context (limit-context context vars)
-           contexts (map #(-> join-context (resolve-clause %) (limit-context vars)) branches)
-           rels (map #(reduce hash-join (:rels %)) contexts)
-           sum-rel (reduce sum-rel rels)]
-       (update context :rels collapse-rels sum-rel))
+      (let [[_ vars & branches] clause
+            vars (set vars)
+            join-context (limit-context context vars)
+            contexts (ha/<? (map< #(ha/go-try (-> join-context (resolve-clause %) (ha/<?) (limit-context vars))) branches))
+            rels (map #(reduce hash-join (:rels %)) contexts)
+            sum-rel (reduce sum-rel rels)]
+        (update context :rels collapse-rels sum-rel))
 
-     '[and *]                                               ;; (and ...)
-     (let [[_ & clauses] clause]
-       (reduce resolve-clause context clauses))
+      '[and *]                                               ;; (and ...)
+      (let [[_ & clauses] clause]
+        (ha/<? (ha/reduce< resolve-clause context clauses)))
 
-     '[not *]                                               ;; (not ...)
-     (let [[_ & clauses] clause
-           bound-vars (set (mapcat #(keys (:attrs %)) (:rels context)))
-           negation-vars (collect-vars clauses)
-           _ (when (empty? (set/intersection bound-vars negation-vars))
-               (raise "Insufficient bindings: none of " negation-vars " is bound in " orig-clause
-                      {:error :query/where
-                       :form  orig-clause}))
-           context' (assoc context :rels [(reduce hash-join (:rels context))])
-           negation-context (reduce resolve-clause context' clauses)
-           negation (subtract-rel
-                     (single (:rels context'))
-                     (reduce hash-join (:rels negation-context)))]
-       (assoc context' :rels [negation]))
+      '[not *]                                               ;; (not ...)
+      (let [[_ & clauses] clause
+            bound-vars (set (mapcat #(keys (:attrs %)) (:rels context)))
+            negation-vars (collect-vars clauses)
+            _ (when (empty? (set/intersection bound-vars negation-vars))
+                (raise "Insufficient bindings: none of " negation-vars " is bound in " orig-clause
+                       {:error :query/where
+                        :form  orig-clause}))
+            context' (assoc context :rels [(reduce hash-join (:rels context))])
+            negation-context (ha/<? (ha/reduce< resolve-clause context' clauses))
+            negation (subtract-rel
+                      (single (:rels context'))
+                      (reduce hash-join (:rels negation-context)))]
+        (assoc context' :rels [negation]))
 
-     '[not-join [*] *]                                      ;; (not-join [vars] ...)
-     (let [[_ vars & clauses] clause
-           _ (check-bound context vars orig-clause)
-           context' (assoc context :rels [(reduce hash-join (:rels context))])
-           join-context (limit-context context' vars)
-           negation-context (-> (reduce resolve-clause join-context clauses)
-                                (limit-context vars))
-           negation (subtract-rel
-                     (single (:rels context'))
-                     (reduce hash-join (:rels negation-context)))]
-       (assoc context' :rels [negation]))
+      '[not-join [*] *]                                      ;; (not-join [vars] ...)
+      (let [[_ vars & clauses] clause
+            _ (check-bound context vars orig-clause)
+            context' (assoc context :rels [(reduce hash-join (:rels context))])
+            join-context (limit-context context' vars)
+            negation-context (-> (ha/<? (ha/reduce< resolve-clause join-context clauses))
+                                 (limit-context vars))
+            negation (subtract-rel
+                      (single (:rels context'))
+                      (reduce hash-join (:rels negation-context)))]
+        (assoc context' :rels [negation]))
 
-     '[*]                                                   ;; pattern
-     (let [source *implicit-source*
-           pattern (resolve-pattern-lookup-refs source clause)
-           relation (lookup-pattern source pattern)]
-       (binding [*lookup-attrs* (if (satisfies? db/IDB source)
-                                  (dynamic-lookup-attrs source pattern)
-                                  *lookup-attrs*)]
-         (update context :rels collapse-rels relation))))))
+      '[*]                                                   ;; pattern
+      (let [source *implicit-source*
+            pattern (resolve-pattern-lookup-refs source clause)
+            relation (ha/<? (lookup-pattern source pattern))]
+        (binding [*lookup-attrs* (if (satisfies? db/IDB source)
+                                   (dynamic-lookup-attrs source pattern)
+                                   *lookup-attrs*)]
+          (update context :rels collapse-rels relation)))))))
 
 (defn resolve-clause [context clause]
-  (if (rule? context clause)
-    (if (source? (first clause))
-      (binding [*implicit-source* (get (:sources context) (first clause))]
-        (resolve-clause context (next clause)))
-      (update context :rels collapse-rels (solve-rule context clause)))
-    (-resolve-clause context clause)))
+  (ha/go-try
+   (if (rule? context clause)
+     (if (source? (first clause))
+       (binding [*implicit-source* (get (:sources context) (first clause))]
+         (ha/<? (resolve-clause context (next clause))))
+       (update context :rels collapse-rels (ha/<? (solve-rule context clause))))
+     (ha/<? (-resolve-clause context clause)))))
 
 (defn -q [context clauses]
   (binding [*implicit-source* (get (:sources context) '$)]
-    (reduce resolve-clause context clauses)))
+    (ha/reduce< resolve-clause context clauses)))
 
 (defn -collect
   ([context symbols]
@@ -1003,30 +1018,32 @@
   (q {:query query :args inputs}))
 
 (defmethod q clojure.lang.PersistentArrayMap [query-map & inputs]
-  (let [query         (if (contains? query-map :query) (:query query-map) query-map)
-        args          (if (contains? query-map :args) (:args query-map) inputs)
-        parsed-q      (memoized-parse-query query)
-        find          (:qfind parsed-q)
-        find-elements (dpip/find-elements find)
-        find-vars     (dpi/find-vars find)
-        result-arity  (count find-elements)
-        with          (:qwith parsed-q)
-        returnmaps    (:qreturnmaps parsed-q)
+  (ha/go-try
+   (let [query         (if (contains? query-map :query) (:query query-map) query-map)
+         args          (if (contains? query-map :args) (:args query-map) inputs)
+         parsed-q      (memoized-parse-query query)
+         find          (:qfind parsed-q)
+         find-elements (dpip/find-elements find)
+         find-vars     (dpi/find-vars find)
+         result-arity  (count find-elements)
+         with          (:qwith parsed-q)
+         returnmaps    (:qreturnmaps parsed-q)
         ;; TODO utilize parser
-        all-vars      (concat find-vars (map :symbol with))
-        query         (cond-> query
-                        (sequential? query) dpi/query->map)
-        wheres        (:where query)
-        context       (-> (Context. [] {} {})
-                          (resolve-ins (:qin parsed-q) args))
-        resultset     (-> context
-                          (-q wheres)
-                          (collect all-vars))]
-    (cond->> resultset
-      (:with query)                                 (mapv #(vec (subvec % 0 result-arity)))
-      (some #(instance? Aggregate %) find-elements) (aggregate find-elements context)
-      (some #(instance? Pull %) find-elements)      (pull find-elements context)
-      true                                          (-post-process find)
-      true                                          (paginate (:offset query-map)
-                                                              (:limit query-map))
-      returnmaps                                    (convert-to-return-maps returnmaps))))
+         all-vars      (concat find-vars (map :symbol with))
+         query         (cond-> query
+                         (sequential? query) dpi/query->map)
+         wheres        (:where query)
+         context       (-> (Context. [] {} {})
+                           (resolve-ins (:qin parsed-q) args))
+         resultset     (-> context
+                           (-q wheres)
+                           (ha/<?)
+                           (collect all-vars))]
+     (cond->> resultset
+       (:with query)                                 (mapv #(vec (subvec % 0 result-arity)))
+       (some #(instance? Aggregate %) find-elements) (aggregate find-elements context)
+       (some #(instance? Pull %) find-elements)      (pull find-elements context)
+       true                                          (-post-process find)
+       true                                          (paginate (:offset query-map)
+                                                               (:limit query-map))
+       returnmaps                                    (convert-to-return-maps returnmaps)))))
