@@ -244,22 +244,27 @@
 
   IIndexAccess
   (-datoms [db index-type cs]
-           (-slice (get db index-type)
-                   (components->pattern db index-type cs e0 tx0)
-                   (components->pattern db index-type cs emax txmax)
-                   index-type))
+           (ha/<??
+            (ha/go-try
+             (-slice (get db index-type)
+                     (ha/<? (components->pattern db index-type cs e0 tx0))
+                     (ha/<? (components->pattern db index-type cs emax txmax))
+                     index-type))))
 
   (-seek-datoms [db index-type cs]
-                (ha/<?? (-slice (get db index-type)
-                                (components->pattern db index-type cs e0 tx0)
-                                (datom emax nil nil txmax)
-                                index-type)))
+                (ha/<?? (ha/go-try
+                         (-slice (get db index-type)
+                                 (ha/<? (components->pattern db index-type cs e0 tx0))
+                                 (datom emax nil nil txmax)
+                                 index-type))))
 
   (-rseek-datoms [db index-type cs]
-                 (-> (ha/<?? (-slice (get db index-type)
-                                     (components->pattern db index-type cs e0 tx0)
-                                     (datom emax nil nil txmax)
-                                     index-type))
+                 (-> (ha/<?? 
+                      (ha/go-try
+                       (-slice (get db index-type)
+                               (ha/<? (components->pattern db index-type cs e0 tx0))
+                               (datom emax nil nil txmax)
+                               index-type)))
                      vec
                      rseq))
 
@@ -267,10 +272,12 @@
                 (when-not (indexing? db attr)
                   (raise "Attribute" attr "should be marked as :db/index true" {}))
                 (validate-attr attr (list '-index-range 'db attr start end) db)
-                (ha/<?? (-slice avet
-                                (resolve-datom db nil attr start nil e0 tx0)
-                                (resolve-datom db nil attr end nil emax txmax)
-                                :avet)))
+                (ha/<??
+                 (ha/go-try
+                  (ha/<? (-slice avet
+                                 (ha/<? (resolve-datom db nil attr start nil e0 tx0))
+                                 (ha/<? (resolve-datom db nil attr end nil emax txmax))
+                                 :avet)))))
 
   clojure.data/EqualityPartition
   (equality-partition [x] :datahike/db)
@@ -373,34 +380,36 @@
        nil result))))
 
 (defn temporal-search [^DB db pattern]
-  (async/merge [(search-current-indices db pattern)
+  (async/merge [(search-current-indices db pattern)  ; TODO: change back async/merges to concat and take on functions
                 (search-temporal-indices db pattern)]))
 
 (defn temporal-datoms [^DB db index-type cs]
-  (let [index (get db index-type)
-        temporal-index (get db (keyword (str "temporal-" (name index-type))))
-        from (components->pattern db index-type cs e0 tx0)
-        to (components->pattern db index-type cs emax txmax)]
-    (async/merge [(-slice index from to index-type)
-                  (-slice temporal-index from to index-type)]))) ; TODO: check that this works as a replacement for concat
+  (ha/go-try
+   (let [index (get db index-type)
+         temporal-index (get db (keyword (str "temporal-" (name index-type))))
+         from (ha/<? (components->pattern db index-type cs e0 tx0))
+         to (ha/<? (components->pattern db index-type cs emax txmax))]
+     (concat (ha/<? (-slice index from to index-type))
+             (ha/<? (-slice temporal-index from to index-type)))))) ; TODO: check that this works as a replacement for concat
 
 (defn temporal-seek-datoms [^DB db index-type cs]
-  (let [index (get db index-type)
-        temporal-index (get db (keyword (str "temporal-" (name index-type))))
-        from (components->pattern db index-type cs e0 tx0)
-        to (datom emax nil nil txmax)]
-    (async/merge [(-slice index from to index-type)
-                  (-slice temporal-index from to index-type)])))
+  (ha/go-try
+   (let [index (get db index-type)
+         temporal-index (get db (keyword (str "temporal-" (name index-type))))
+         from (ha/<? (components->pattern db index-type cs e0 tx0))
+         to (datom emax nil nil txmax)]
+     (concat  (ha/<? (-slice index from to index-type))
+              (ha/<? (-slice temporal-index from to index-type))))))
 
 (defn temporal-rseek-datoms [^DB db index-type cs]
-  (let [index (get db index-type)
-        temporal-index (get db (keyword (str "temporal-" (name index-type))))
-        from (components->pattern db index-type cs e0 tx0)
-        to (datom emax nil nil txmax)]
-    (ha/go-try
-     (concat
-      (-> (ha/<? (async/merge [(-slice index from to index-type)
-                               (-slice temporal-index from to index-type)]))
+  (ha/go-try
+   (let [index (get db index-type)
+         temporal-index (get db (keyword (str "temporal-" (name index-type))))
+         from (ha/<? (components->pattern db index-type cs e0 tx0))
+         to (datom emax nil nil txmax)]
+     (concat ;; check what this concat does
+      (-> (concat  (ha/<? (-slice index from to index-type))
+                   (ha/<? (-slice temporal-index from to index-type)))
           vec
           rseq)))))
 
@@ -408,11 +417,12 @@
   (when-not (indexing? db attr)
     (raise "Attribute" attr "should be marked as :db/index true" {}))
   (validate-attr attr (list '-index-range 'db attr start end) db)
-  (let [from (resolve-datom current-db nil attr start nil e0 tx0)
-        to (resolve-datom current-db nil attr end nil emax txmax)]
-    (async/merge
-     [(-slice (get db :avet) from to :avet)
-      (-slice (get db :temporal-avet) from to :avet)])))
+  (ha/go-try
+   (let [from (ha/<? (resolve-datom current-db nil attr start nil e0 tx0))
+         to (ha/<? (resolve-datom current-db nil attr end nil emax txmax))]
+     (concat 
+      (ha/<? (-slice (get db :avet) from to :avet))
+      (ha/<? (-slice (get db :temporal-avet) from to :avet))))))
 
 (defrecord-updatable HistoricalDB [origin-db]
   #?@(:cljs
@@ -479,7 +489,7 @@
    (->> datoms
         (map datom-tx)
         (distinct)
-        (map (fn [tx] (temporal-datoms db :eavt [tx])))
+        (map (fn [tx] (ha/<? (temporal-datoms db :eavt [tx]))))
         (async/merge)
         (async/into [])
         (ha/<?)
@@ -945,13 +955,14 @@
 
 (defn- resolve-datom [db e a v t default-e default-tx]
   (when a (validate-attr a (list 'resolve-datom 'db e a v t) db))
-  (datom
-   (or (ha/<?? (entid-some db e)) default-e)                        ;; e
-   a                                                       ;; a
-   (if (and (some? v) (ref? db a))                         ;; v
-     (ha/<?? (entid-strict db v))
-     v)
-   (or (ha/<?? (entid-some db t)) default-tx)))                     ;; t
+  (ha/go-try
+   (datom
+    (or (ha/<? (entid-some db e)) default-e)                        ;; e
+    a                                                       ;; a
+    (if (and (some? v) (ref? db a))                         ;; v
+      (ha/<? (entid-strict db v))
+      v)
+    (or (ha/<? (entid-some db t)) default-tx))))                     ;; t
 
 (defn components->pattern [db index [c0 c1 c2 c3] default-e default-tx]
   (case index
