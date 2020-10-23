@@ -178,18 +178,22 @@
   [db e a else-val]
   (when (nil? else-val)
     (raise "get-else: nil default value is not supported" {:error :query/where}))
-  (if-some [datom (first (ha/<?? (db/-search db [e a])))]
-    (:v datom)
-    else-val))
+  (ha/<??
+   (ha/go-try
+    (if-some [datom (first (ha/<? (db/-search db [e a])))]
+      (:v datom)
+      else-val))))
 
 (defn- -get-some
   [db e & as]
-  (reduce
-   (fn [_ a]
-     (when-some [datom (first (ha/<?? (db/-search db [e a])))]
-       (reduced [(:a datom) (:v datom)])))
-   nil
-   as))
+  (ha/<??
+   (ha/go-try
+    (reduce
+     (fn [_ a]
+       (when-some [datom (first (ha/<? (db/-search db [e a])))]
+         (reduced [(:a datom) (:v datom)])))
+     nil
+     as))))
 
 (defn- -missing?
   [db e a]
@@ -458,12 +462,14 @@
 
 (defn lookup-pattern-db [db pattern]
   ;; TODO optimize with bound attrs min/max values here
-  (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
-        datoms (ha/<?? (db/-search db search-pattern))
-        attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
-                        (filter (fn [[s _]] (free-var? s)))
-                        (into {}))]
-    (Relation. attr->prop datoms)))
+  (ha/<?? 
+   (ha/go-try 
+           (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
+                 datoms (ha/<? (db/-search db search-pattern))
+                 attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
+                                 (filter (fn [[s _]] (free-var? s)))
+                                 (into {}))]
+             (Relation. attr->prop datoms)))))
 
 (defn matches-pattern? [pattern tuple]
   (loop [tuple tuple
