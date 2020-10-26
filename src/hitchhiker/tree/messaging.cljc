@@ -194,10 +194,8 @@
                                          (neg? (c/-compare k start-key)))
                                        (apply-ops-in-path path))]
               (ha/<? (async/onto-chan! iter-ch elements false))
-              (println "Put elements onto the channel: " elements)
               (recur (ha/<? (tree/right-successor (pop path)))))
-            (do (println "closing channel")
-                (async/close! iter-ch)))))))
+            (async/close! iter-ch))))))
 
    #?(:clj
       (defn lookup-fwd-iter
