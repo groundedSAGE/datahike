@@ -246,8 +246,8 @@
 
   IIndexAccess
   (-datoms [db index-type cs]
-           (ha/<??
-            (ha/go-try
+           (ha/go-try
+            (ha/<?
              (-slice (get db index-type)
                      (ha/<? (components->pattern db index-type cs e0 tx0))
                      (ha/<? (components->pattern db index-type cs emax txmax))
@@ -1208,9 +1208,12 @@
          keep-history? (and (-keep-history? db) (not (no-history? db a)))]
      (if (datom-added datom)
        (cond-> db
-         true (update-in [:eavt] #(di/-insert % datom :eavt))
-         true (update-in [:aevt] #(di/-insert % datom :aevt))
-         indexing? (update-in [:avet] #(di/-insert % datom :avet))
+         true (ha/update-in< [:eavt] #(di/-insert % datom :eavt))
+         true (ha/<?)
+         true (ha/update-in< [:aevt] #(di/-insert % datom :aevt))
+         true (ha/<?)
+         indexing? (ha/update-in< [:avet] #(di/-insert % datom :avet))
+         indexing? (ha/<?)
          true (advance-max-eid (.-e datom))
          true (update :hash + (hash datom))
          schema? (-> (update-schema datom)
@@ -1222,13 +1225,19 @@
            indexing? (update-in [:avet] #(di/-remove % removing :avet))
            true (update :hash - (hash removing))
            schema? (-> (remove-schema datom) update-rschema)
-           keep-history? (update-in [:temporal-eavt] #(di/-insert % removing :eavt))
-           keep-history? (update-in [:temporal-eavt] #(di/-insert % datom :eavt))
-           keep-history? (update-in [:temporal-aevt] #(di/-insert % removing :aevt))
-           keep-history? (update-in [:temporal-aevt] #(di/-insert % datom :aevt))
+           keep-history? (ha/update-in< [:temporal-eavt] #(di/-insert % removing :eavt))
+           keep-history? (ha/<?)
+           keep-history? (ha/update-in< [:temporal-eavt] #(di/-insert % datom :eavt))
+           keep-history? (ha/<?)
+           keep-history? (ha/update-in< [:temporal-aevt] #(di/-insert % removing :aevt))
+           keep-history? (ha/<?)
+           keep-history? (ha/update-in< [:temporal-aevt] #(di/-insert % datom :aevt))
+           keep-history? (ha/<?)
            keep-history? (update :hash + (hash datom))
-           (and keep-history? indexing?) (update-in [:temporal-avet] #(di/-insert % removing :avet))
-           (and keep-history? indexing?) (update-in [:temporal-avet] #(di/-insert % datom :avet)))
+           (and keep-history? indexing?) (ha/update-in< [:temporal-avet] #(di/-insert % removing :avet))
+           (and keep-history? indexing?) (ha/<?)
+           (and keep-history? indexing?) (ha/update-in< [:temporal-avet] #(di/-insert % datom :avet))
+           (and keep-history? indexing?) (ha/<?))
          db)))))
 
 (defn- with-temporal-datom [db ^Datom datom]
@@ -1257,6 +1266,8 @@
                  (update-in [:tx-data] conj datom))))
 
 (defn- check-upsert-conflict [entity acc]
+  ;(println "This is acc" acc)
+  ;(println (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
   (let [[e a v] acc
         _e (:db/id entity)]
     (if (or (nil? _e)

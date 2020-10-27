@@ -64,8 +64,10 @@
   throwable error."
      [ch]
      (if-async?
-      `(do (println (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))  
-           (throw-if-exception (async/<!! ~ch))) 
+      `(do
+         (println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
+         (println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
+         (throw-if-exception (async/<!! ~ch))) 
       ;`(throw (Exception. "Calls a sync function!")) ;
       ch)))
 
@@ -92,5 +94,6 @@
 
   #?(:clj
      (defn chan-seq [ch]
-       (when-some [v (<?? ch)]
-         (cons v (lazy-seq (chan-seq ch))))))
+       (go-try
+        (when-some [v (<? ch)]
+          (cons v (lazy-seq (<? (chan-seq ch))))))))

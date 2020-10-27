@@ -8,7 +8,8 @@
             [datahike.constants :refer [e0 tx0 emax txmax]]
             [datahike.datom :as dd]
             [clojure.set :as set]
-            [clojure.core.async :as async])
+            [clojure.core.async :as async]
+            [tupelo.misc :as tupelo])
   #?(:clj (:import [clojure.lang AMapEntry]
                    [datahike.datom Datom])))
 
@@ -116,7 +117,7 @@
   (tree/b-tree (tree/->Config br-sqrt br (- br br-sqrt))))
 
 (defn -insert [tree ^Datom datom index-type]
-  (ha/<?? (hmsg/insert tree (datom->node datom index-type) nil)))
+  (hmsg/insert tree (datom->node datom index-type) nil))
 
 (defn init-tree
   "Create tree with datoms"
