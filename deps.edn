@@ -1,5 +1,5 @@
 {:deps {org.clojure/clojure           {:mvn/version "1.10.1"}
-        org.clojure/clojurescript     {:mvn/version "1.10.597"}
+        org.clojure/clojurescript     {:mvn/version "1.10.773"}
         persistent-sorted-set         {:mvn/version "0.1.2"}
         org.clojure/tools.reader      {:mvn/version "1.3.3"}
         environ                       {:mvn/version "1.2.0"}
@@ -8,7 +8,8 @@
         io.replikativ/konserve      {:git/url "https://github.com/replikativ/konserve.git"
                                      :sha "f904359fc91fd6e6c36b9cd320d7beadaf5a15b7"}
         io.replikativ/superv.async    {:mvn/version "0.2.11"}
-        io.lambdaforge/datalog-parser {:mvn/version "0.1.8-SNAPSHOT"}
+        io.lambdaforge/datalog-parser {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
+                                       :sha "3d8c51862d77293b8998b7827717f7d4dc63da04"}
         io.replikativ/zufall          {:mvn/version "0.1.0"}
         junit/junit                   {:mvn/version "4.13"}}
  :paths ["src" "target/classes"]
@@ -16,6 +17,10 @@
  :aliases {:1.9 {:override-deps {org.clojure/clojure {:mvn/version "1.9.0"}}}
 
            :1.10 {:override-deps {org.clojure/clojure {:mvn/version "1.10.0"}}}
+           
+           :cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.10.21"}
+                               binaryage/devtools   {:mvn/version "1.0.2"}}
+                  :extra-paths ["test" "dev"]}
 
            :dev {:extra-paths ["dev"]
                  :extra-deps {org.clojure/tools.namespace {:mvn/version "0.2.11"}

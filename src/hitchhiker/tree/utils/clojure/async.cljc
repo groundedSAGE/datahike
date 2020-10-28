@@ -1,7 +1,8 @@
 (ns hitchhiker.tree.utils.clojure.async
   (:require #?(:clj [hitchhiker.tree.utils.platform])
             [clojure.core.async :as async]
-            [tupelo.misc :as tupelo]))
+            #?(:clj [tupelo.misc :as tupelo]) ; Just for debugging
+            ))
 
 (def ^:dynamic *async?* true)
 
@@ -58,18 +59,22 @@
    `(throw-if-exception (async/<! ~ch))
    ch))
 
+
+
 #?(:clj
    (defmacro <??
      "Same as core.async <!! but throws an exception if the channel returns a
   throwable error."
      [ch]
      (if-async?
-      `(do  ;; Another potential trick for debugging could be to check if the input is a channel.
+      (if (:ns &env)
+        `(throw (js/Error. "TODO: better error message"))
+        `(do  ;; Another potential trick for debugging could be to check if the input is a channel.
             ;; Sometimes you could do a take on a value which already was taken from a channel. 
             ;; This doesn't explicitely throw a clear error.
-         (println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
-         (println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
-         (throw-if-exception (async/<!! ~ch))) 
+           (println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
+           (println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
+           (throw-if-exception (async/<!! ~ch)))) 
       ;`(throw (Exception. "Calls a sync function!")) ;
       ch)))
 

@@ -12,7 +12,8 @@
   :backend)
 
 (defmethod empty-store :default [{:keys [backend]}]
-  (throw (IllegalArgumentException. (str "Can't create a store with scheme: " backend))))
+  #?(:clj (throw (IllegalArgumentException. (str "Can't create a store with scheme: " backend)))
+     :cljs (throw (js/Error. "TODO: better error message"))))
 
 (defmulti delete-store
   "Deletes an existing store"
@@ -20,7 +21,8 @@
   :backend)
 
 (defmethod delete-store :default [{:keys [backend]}]
-  (throw (IllegalArgumentException. (str "Can't delete a store with scheme: " backend))))
+  #?(:clj (throw (IllegalArgumentException. (str "Can't delete a store with scheme: " backend)))
+     :cljs (throw (js/Error. "TODO: better error message"))))
 
 (defmulti connect-store
   "Makes a connection to an existing store"
@@ -28,7 +30,8 @@
   :backend)
 
 (defmethod connect-store :default [{:keys [backend]}]
-  (throw (IllegalArgumentException. (str "Can't connect to store with scheme: " backend))))
+  #?(:clj (throw (IllegalArgumentException. (str "Can't connect to store with scheme: " backend)))
+     :cljs (throw (js/Error. "TODO: better error message"))))
 
 (defmulti release-store
   "Releases the connection to an existing store (optional)."
@@ -95,15 +98,15 @@
 
 ;; file
 
-(defmethod empty-store :file [{:keys [path]}]
-  (kons/add-hitchhiker-tree-handlers
-   (<?? S (fs/new-fs-store path))))
+#?(:clj (defmethod empty-store :file [{:keys [path]}]
+          (kons/add-hitchhiker-tree-handlers
+           (<?? S (fs/new-fs-store path)))))
 
-(defmethod delete-store :file [{:keys [path]}]
-  (fs/delete-store path))
+#?(:clj (defmethod delete-store :file [{:keys [path]}]
+          (fs/delete-store path)))
 
-(defmethod connect-store :file [{:keys [path]}]
-  (<?? S (fs/new-fs-store path)))
+#?(:clj (defmethod connect-store :file [{:keys [path]}]
+          (<?? S (fs/new-fs-store path))))
 
 (defmethod scheme->index :file [_]
   :datahike.index/hitchhiker-tree)
