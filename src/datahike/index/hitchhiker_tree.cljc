@@ -105,11 +105,12 @@
   (count (-seq tree index-type)))
 
 (defn -all [tree index-type]
-  (map
-   #(apply
-     (index-type->datom-fn index-type)
-     (first %))
-   (hmsg/lookup-fwd-iter tree [])))
+  (ha/go-try
+   (map
+    #(apply
+      (index-type->datom-fn index-type)
+      (first %))
+    (ha/<? (hmsg/lookup-fwd-iter tree [])))))
 
 (defn empty-tree
   "Create empty hichthiker tree"

@@ -64,7 +64,9 @@
   throwable error."
      [ch]
      (if-async?
-      `(do
+      `(do  ;; Another potential trick for debugging could be to check if the input is a channel.
+            ;; Sometimes you could do a take on a value which already was taken from a channel. 
+            ;; This doesn't explicitely throw a clear error.
          (println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
          (println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
          (throw-if-exception (async/<!! ~ch))) 

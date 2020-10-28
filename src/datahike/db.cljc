@@ -197,10 +197,10 @@
                    (->> (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)) ;; _ a _ tx
                         (filter (fn [^Datom d] (= tx (datom-tx d)))))
                    (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)) ;; _ a _ _
-                   (filter (fn [^Datom d] (and (= v (.-v d)) (= tx (datom-tx d)))) (-all eavt)) ;; _ _ v tx
-                   (filter (fn [^Datom d] (= v (.-v d))) (-all eavt)) ;; _ _ v _
-                   (filter (fn [^Datom d] (= tx (datom-tx d))) (-all eavt)) ;; _ _ _ tx
-                   (-all eavt)])))))
+                   (filter (fn [^Datom d] (and (= v (.-v d)) (= tx (datom-tx d)))) (ha/<?? (-all eavt))) ;; _ _ v tx
+                   (filter (fn [^Datom d] (= v (.-v d))) (ha/<?? (-all eavt))) ;; _ _ v _
+                   (filter (fn [^Datom d] (= tx (datom-tx d))) (ha/<?? (-all eavt))) ;; _ _ _ tx
+                   (ha/<? (-all eavt))])))))
 
 (defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
   #?@(:cljs
@@ -382,8 +382,9 @@
        nil result))))
 
 (defn temporal-search [^DB db pattern]
-  (async/merge [(search-current-indices db pattern)  ; TODO: change back async/merges to concat and take on functions
-                (search-temporal-indices db pattern)]))
+  (ha/go-try
+   (concat (ha/<? (search-current-indices db pattern))
+           (ha/<? (search-temporal-indices db pattern)))))
 
 (defn temporal-datoms [^DB db index-type cs]
   (ha/go-try
@@ -836,7 +837,8 @@
      e0)))
 
 (defn get-max-tx [eavt]
-  (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 (-all eavt)))
+  (ha/go-try
+   (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 (ha/<? (-all eavt)))))
 
 (defn ^DB init-db
   ([datoms] (init-db datoms nil nil))
@@ -850,7 +852,7 @@
                     aevt (ha/<? (di/init-index index datoms indexed :aevt))
                     avet (ha/<? (di/init-index index datoms indexed :avet))
                     max-eid (ha/<? (init-max-eid eavt))
-                    max-tx (get-max-tx eavt)]
+                    max-tx (ha/<? (get-max-tx eavt))]
                 (map->DB (merge {:schema  (merge schema (when (= :read schema-flexibility) implicit-schema))
                                  :rschema rschema
                                  :config  config

@@ -17,11 +17,10 @@
 
   (seq [])
 
-  (ha/<?? (db/empty-db))
+  (async/<!! (db/empty-db))
   
-  (ha/<?? (db/init-db []))
+  (async/<!! (db/init-db []))
   
-  ;(dissoc {:class-name "datahike.db.DB", :file-name "db.cljc", :method-name "_datoms", :line-num 203, :ns-name "datahike.db.DB", :fn-name 1} :class-name)
   
   (ha/<?? (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))
 
@@ -30,16 +29,16 @@
     ([db tx-data] (with db tx-data nil))
     ([db tx-data tx-meta]
      {:pre [(db/db? db)]}
-     (db/transact-tx-data (db/map->TxReport
-                           {:db-before db
-                            :db-after  db
-                            :tx-data   []
-                            :tempids   {}
-                            :tx-meta   tx-meta}) tx-data)))
+     (async/<!! (db/transact-tx-data (db/map->TxReport
+                                   {:db-before db
+                                    :db-after  db
+                                    :tx-data   []
+                                    :tempids   {}
+                                    :tx-meta   tx-meta}) tx-data))))
   
-  (def bob-db (:db-after (with (ha/<?? (db/empty-db)) [{:name "bob" :age 5}])))
+  (def bob-db (:db-after (with (async/<!! (db/empty-db)) [{:name "bob" :age 5}])))
   
-  (ha/<?? (q/q '[:find ?a :where 
+  (async/<!! (q/q '[:find ?a :where 
                  [?e :name "bob"]
                  [?e :age ?a]]
                bob-db))
