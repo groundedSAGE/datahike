@@ -5,38 +5,41 @@
             #?(:clj [hitchhiker.tree :as tree])
             #?(:cljs [hitchhiker.tree-cljs :as tree])
             [hitchhiker.tree.utils.gc :refer [mark]]
-            ;[konserve.gc :refer [sweep!]]
-            ;[datahike.constants :refer [e0 tx0 emax txmax]]
-            ;[datahike.datom :as dd]
-            ;[clojure.set :as set]
-            ;[clojure.core.async :as async]
-            ;#?(:clj [tupelo.misc :as tupelo]) ; For debugging
+            [clojure.core.async]
+            [konserve.gc :refer [sweep!]]
+            [datahike.constants :refer [e0 tx0 emax txmax]]
+            [datahike.datom :as dd]
+            [clojure.set :as set]
+            [clojure.core.async :as async]
+            #?(:clj [tupelo.misc :as tupelo]) ; For debugging
             )
   #?(:clj (:import [clojure.lang AMapEntry]
                    [datahike.datom Datom])))
-#_(
-   (extend-protocol kc/IKeyCompare
-     clojure.lang.PersistentVector
-     (-compare [key1 key2]
-       (if-not (= (class key2) clojure.lang.PersistentVector)
-         -1                                                    ;; HACK for nil
-         (let [[a b c d] key1
-               [e f g h] key2]
-           (dd/combine-cmp
-            (kc/-compare a e)
-            (kc/-compare b f)
-            (kc/-compare c g)
-            (kc/-compare d h)))))
-     java.lang.String
-     (-compare [key1 key2]
-       (compare key1 key2))
-     clojure.lang.Keyword
-     (-compare [key1 key2]
-       (compare key1 key2))
-     nil
-     (-compare [key1 key2]
-       (if (nil? key2)
-         0 -1)))
+
+
+
+(extend-protocol kc/IKeyCompare
+  clojure.lang.PersistentVector
+  (-compare [key1 key2]
+    (if-not (= (class key2) clojure.lang.PersistentVector)
+      -1                                                    ;; HACK for nil
+      (let [[a b c d] key1
+            [e f g h] key2]
+        (dd/combine-cmp
+         (kc/-compare a e)
+         (kc/-compare b f)
+         (kc/-compare c g)
+         (kc/-compare d h)))))
+  java.lang.String
+  (-compare [key1 key2]
+    (compare key1 key2))
+  clojure.lang.Keyword
+  (-compare [key1 key2]
+    (compare key1 key2))
+  nil
+  (-compare [key1 key2]
+    (if (nil? key2)
+      0 -1)))
 
    (def ^:const br 300) ;; TODO name better, total node size; maybe(!) make configurable
    (def ^:const br-sqrt (long (Math/sqrt br))) ;; branching factor
@@ -156,4 +159,4 @@
                                 (ha/<?? (mark (into #{} (:children temporal-eavt))))
                                 (ha/<?? (mark (into #{} (:children temporal-avet))))
                                 (ha/<?? (mark (into #{} (:children temporal-aevt)))))))]
-       (async/<!! (sweep! (:store db) marked date)))))
+       (async/<!! (sweep! (:store db) marked date))))

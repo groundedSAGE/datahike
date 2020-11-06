@@ -13,7 +13,7 @@
 
 (defmethod empty-store :default [{:keys [backend]}]
   #?(:clj (throw (IllegalArgumentException. (str "Can't create a store with scheme: " backend)))
-     :cljs (throw (js/Error. "TODO: better error message"))))
+     :cljs (throw (js/Error. (str "Can't create a store with scheme: " backend)))))
 
 (defmulti delete-store
   "Deletes an existing store"
@@ -22,7 +22,7 @@
 
 (defmethod delete-store :default [{:keys [backend]}]
   #?(:clj (throw (IllegalArgumentException. (str "Can't delete a store with scheme: " backend)))
-     :cljs (throw (js/Error. "TODO: better error message"))))
+     :cljs (throw (js/Error. (str "Can't delete a store with scheme: " backend)))))
 
 (defmulti connect-store
   "Makes a connection to an existing store"
@@ -31,7 +31,7 @@
 
 (defmethod connect-store :default [{:keys [backend]}]
   #?(:clj (throw (IllegalArgumentException. (str "Can't connect to store with scheme: " backend)))
-     :cljs (throw (js/Error. "TODO: better error message"))))
+     :cljs (throw (js/Error. (str "Can't connect to store with scheme: " backend)))))
 
 (defmulti release-store
   "Releases the connection to an existing store (optional)."

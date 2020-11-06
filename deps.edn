@@ -5,8 +5,8 @@
         environ                       {:mvn/version "1.2.0"}
         com.taoensso/timbre           {:mvn/version "4.10.0"}
         io.replikativ/hitchhiker-tree {:local/root "../hitchhiker-tree/replikativ-hitchhiker-tree.jar"}
-        io.replikativ/konserve      {:git/url "https://github.com/replikativ/konserve.git"
-                                     :sha "f904359fc91fd6e6c36b9cd320d7beadaf5a15b7"}
+        io.replikativ/konserve        {:git/url "https://github.com/groundedSAGE/konserve.git"
+                                       :sha "e70abe063adb6ed064e78daa7e00f4b03d6222a8"}
         io.replikativ/superv.async    {:mvn/version "0.2.11"}
         io.lambdaforge/datalog-parser {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
                                        :sha "3d8c51862d77293b8998b7827717f7d4dc63da04"}
