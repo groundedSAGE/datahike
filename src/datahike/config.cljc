@@ -103,7 +103,13 @@
            :keep-history? false
            :schema-flexibility :read
            :name (z/rand-german-mammal)
-           :index :datahike.index/hitchhiker-tree}))
+           :index :datahike.index/hitchhiker-tree})
+   :cljs    (defn storeless-config []
+              {:store nil
+               :keep-history? false
+               :schema-flexibility :read
+               :name "TODO: fix this"
+               :index :datahike.index/hitchhiker-tree}))
 
 (defn remove-nils
   "Thanks to https://stackoverflow.com/a/34221816"

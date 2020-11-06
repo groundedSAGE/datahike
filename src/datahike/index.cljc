@@ -19,7 +19,7 @@
      (-flush [index backend])
      (-transient [index])
      (-persistent! [index]))
-#_(
+
    (extend-type DataNode
      IIndex
      (-all [eavt-tree]
@@ -36,11 +36,11 @@
        (dih/-slice tree from to index-type))
      (-flush [tree backend]
        (dih/-flush tree backend))
-     (-transient [tree]
+     #_(-transient [tree]
        (dih/-transient tree))
-     (-persistent! [tree]
+     #_(-persistent! [tree]
        (dih/-persistent! tree)))
-
+#_(
    (extend-type IndexNode
      IIndex
      (-all [eavt-tree]

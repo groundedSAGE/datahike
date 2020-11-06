@@ -146,7 +146,7 @@
 
    (def -transient identity)
 
-   (defn gc
+   #_(defn gc
      "Invokes garbage collection on the database erasing all fragments that are not reachable and older than the date passed."
      [db date]
      (let [{:keys [eavt avet aevt temporal-eavt temporal-avet temporal-aevt config]} db

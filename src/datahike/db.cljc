@@ -795,7 +795,7 @@
        (raise "Incomplete schema attributes, expected at least :db/valueType, :db/cardinality"
               (ds/explain-old-schema schema))))
 
-   #_(defn ^DB empty-db
+   (defn ^DB empty-db
      "Prefer create-database in api, schema not in index."
      ([] (empty-db nil nil))
      ([schema] (empty-db schema nil))
