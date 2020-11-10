@@ -5,9 +5,8 @@
   {:target :browser
    :output-dir "public/js"
    :asset-path "/js"
-   :modules {:main {:entries [datahike.index.hitchhiker-tree]}}}
-  ; Need to work on compiling
-  ; datahike.index.hitchhiker-tree
+   :modules {:main {:entries [datahike.db]}}}
+
 
   :browser-test
   {:target :browser-test

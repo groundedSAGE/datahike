@@ -1,6 +1,6 @@
 (ns datahike.index
   (:refer-clojure :exclude [-seq -count -flush -persistent!])
-  (:require ;[datahike.index.hitchhiker-tree :as dih]
+  (:require [datahike.index.hitchhiker-tree :as dih]
    [datahike.index.persistent-set :as dip]
    #?(:cljs [hitchhiker.tree-cljs :refer [DataNode IndexNode]])
    #?(:cljs [me.tonsky.persistent-sorted-set :as PersistentSortedSet]))
@@ -36,11 +36,11 @@
        (dih/-slice tree from to index-type))
      (-flush [tree backend]
        (dih/-flush tree backend))
-     #_(-transient [tree]
+     (-transient [tree]
        (dih/-transient tree))
-     #_(-persistent! [tree]
+     (-persistent! [tree]
        (dih/-persistent! tree)))
-#_(
+
    (extend-type IndexNode
      IIndex
      (-all [eavt-tree]
@@ -61,7 +61,7 @@
        (dih/-transient tree))
      (-persistent! [tree]
        (dih/-persistent! tree)))
-
+#_(
    (extend-type PersistentSortedSet
      IIndex
      (-all [eavt-set]
@@ -81,7 +81,7 @@
      (-transient [set]
        (dip/-transient set))
      (-persistent! [set]
-       (dip/-persistent! set)))
+       (dip/-persistent! set))))
 
    (defmulti empty-index
      "Creates empty index"
@@ -103,4 +103,4 @@
      (dih/init-tree datoms index-type))
 
    (defmethod init-index ::persistent-set [_ datoms indexed index-type]
-     (dip/init-set datoms indexed index-type)))
+     (dip/init-set datoms indexed index-type))

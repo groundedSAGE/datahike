@@ -13,15 +13,16 @@
             [clojure.core.async :as async]
             #?(:clj [tupelo.misc :as tupelo]) ; For debugging
             )
+  (:refer-clojure :exclude [-seq -count -all -flush -persistent!])
   #?(:clj (:import [clojure.lang AMapEntry]
                    [datahike.datom Datom])))
 
 
 
 (extend-protocol kc/IKeyCompare
-  clojure.lang.PersistentVector
+  cljs.core/PersistentVector ;clojure.lang.PersistentVector
   (-compare [key1 key2]
-    (if-not (= (class key2) clojure.lang.PersistentVector)
+    (if-not (= (type #_class key2) cljs.core/PersistentVector #_clojure.lang.PersistentVector)
       -1                                                    ;; HACK for nil
       (let [[a b c d] key1
             [e f g h] key2]
@@ -30,10 +31,10 @@
          (kc/-compare b f)
          (kc/-compare c g)
          (kc/-compare d h)))))
-  java.lang.String
+  string ;java.lang.String
   (-compare [key1 key2]
     (compare key1 key2))
-  clojure.lang.Keyword
+  cljs.core/Keyword ;clojure.lang.Keyword
   (-compare [key1 key2]
     (compare key1 key2))
   nil
@@ -111,11 +112,13 @@
 
    (defn -all [tree index-type]
      (ha/go-try
-      (map
-       #(apply
-         (index-type->datom-fn index-type)
-         (first %))
-       (ha/<? (hmsg/lookup-fwd-iter tree [])))))
+      (let [ch (async/chan)  
+            _ (hmsg/forward-iterator ch tree [])]
+        (map
+         #(apply
+           (index-type->datom-fn index-type)
+           (first %))
+         (seq (ha/<? (async/into [] ch))))))) ;; TODO: refactor like -slice above
 
    (defn empty-tree
      "Create empty hichthiker tree"
@@ -137,10 +140,11 @@
         (seq datoms)))))
 
    (defn -remove [tree ^Datom datom index-type]
-     (ha/<?? (hmsg/delete tree (datom->node datom index-type))))
+     (hmsg/delete tree (datom->node datom index-type)))
 
    (defn -flush [tree backend]
-     (:tree (ha/<?? (tree/flush-tree-without-root tree backend))))
+     nil ;TODO 
+     #_(:tree (ha/<?? (tree/flush-tree-without-root tree backend))))
 
    (def -persistent! identity)
 
