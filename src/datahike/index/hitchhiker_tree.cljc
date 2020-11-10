@@ -11,7 +11,7 @@
             [datahike.datom :as dd]
             [clojure.set :as set]
             [clojure.core.async :as async]
-            #?(:clj [tupelo.misc :as tupelo]) ; For debugging
+           
             )
   (:refer-clojure :exclude [-seq -count -all -flush -persistent!])
   #?(:clj (:import [clojure.lang AMapEntry]
@@ -20,9 +20,13 @@
 
 
 (extend-protocol kc/IKeyCompare
-  cljs.core/PersistentVector ;clojure.lang.PersistentVector
+  #?(:cljs cljs.core/PersistentVector
+     :clj clojure.lang.PersistentVector)
   (-compare [key1 key2]
-    (if-not (= (type #_class key2) cljs.core/PersistentVector #_clojure.lang.PersistentVector)
+    (if-not (= (#?(:cljs type
+                   :clj class) key2)
+               #?(:cljs cljs.core/PersistentVector
+                  :clj clojure.lang.PersistentVector))
       -1                                                    ;; HACK for nil
       (let [[a b c d] key1
             [e f g h] key2]
@@ -31,10 +35,12 @@
          (kc/-compare b f)
          (kc/-compare c g)
          (kc/-compare d h)))))
-  string ;java.lang.String
+  #?(:cljs string
+     :clj java.lang.String)
   (-compare [key1 key2]
     (compare key1 key2))
-  cljs.core/Keyword ;clojure.lang.Keyword
+  #?(:cljs cljs.core/Keyword
+     :clj clojure.lang.Keyword)
   (-compare [key1 key2]
     (compare key1 key2))
   nil

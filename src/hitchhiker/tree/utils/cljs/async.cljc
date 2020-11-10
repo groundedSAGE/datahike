@@ -1,15 +1,8 @@
-(ns hitchhiker.tree.utils.clojure.async
-  (:require #?(:clj [hitchhiker.tree.utils.platform])
-            [clojure.core.async :as async]
-           
-            ))
+(ns hitchhiker.tree.utils.cljs.async
+  #?(:cljs (:require-macros [hitchhiker.tree.utils.cljs.async :refer [go-try <? if-async?]]))
+  (:require [clojure.core.async :as async]))
 
 (def ^:dynamic *async?* true)
-
-(defmacro funny [s]
-  (if *async?*
-    (str s "haha so funny")
-    (str s "not so funny")))
 
 (defmacro if-async?
   ""
@@ -59,22 +52,13 @@
    `(throw-if-exception (async/<! ~ch))
    ch))
 
-
-
 #?(:clj
    (defmacro <??
      "Same as core.async <!! but throws an exception if the channel returns a
   throwable error."
      [ch]
      (if-async?
-      (if (:ns &env)
-        `(throw (js/Error. "TODO: better error message"))
-        `(do  ;; Another potential trick for debugging could be to check if the input is a channel.
-            ;; Sometimes you could do a take on a value which already was taken from a channel. 
-            ;; This doesn't explicitely throw a clear error.
-      
-           (throw-if-exception (async/<!! ~ch)))) 
-      ;`(throw (Exception. "Calls a sync function!")) ;
+      `(throw-if-exception (async/<!! ~ch))
       ch)))
 
 (defn reduce<
@@ -88,18 +72,16 @@
        (recur (<? (go-f res f)) r)
        res))))
 
-  (defn update-in< [m ks go-f & args]
-    (let [up (fn up [m ks go-f args]
-               (go-try
-                (let [[k & ks] ks]
-                  (if ks
-                    (assoc m k (<? (up (get m k) ks go-f args)))
-                    (assoc m k (<? (apply go-f (get m k) args)))))))]
-      (up m ks go-f args)))
+ (defn update-in< [m ks go-f & args]
+   (let [up (fn up [m ks go-f args]
+              (go-try
+               (let [[k & ks] ks]
+                 (if ks
+                   (assoc m k (<? (up (get m k) ks go-f args)))
+                   (assoc m k (<? (apply go-f (get m k) args)))))))]
+     (up m ks go-f args)))
 
-
-  #?(:clj
-     (defn chan-seq [ch]
-       (go-try
-        (when-some [v (<? ch)]
-          (cons v (lazy-seq (<? (chan-seq ch))))))))
+#?(:clj
+   (defn chan-seq [ch]
+     (when-some [v (<?? ch)]
+       (cons v (lazy-seq (chan-seq ch))))))

@@ -1,7 +1,7 @@
 (ns datahike.query
   (:require
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-   #?(:clj [tupelo.misc :as tupelo])
+   
    #?(:clj [hitchhiker.tree.utils.clojure.async :as ha])
    [clojure.set :as set]
    [clojure.string :as str]
