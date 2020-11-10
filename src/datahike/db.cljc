@@ -13,8 +13,9 @@
    [datahike.tools :refer [get-time case-tree raise]]
    [datahike.schema :as ds]
    [me.tonsky.persistent-sorted-set.arrays :as arrays]
-   [datahike.config :as dc])
-  #?(:cljs (:require-macros ;[datahike.db :refer [defrecord-updatable cond+]]
+   [datahike.config :as dc]
+   #?(:cljs [datahike.datom :refer [Datom]]))
+  #?(:cljs (:require-macros ;[datahike.db :refer [defrecord-updatable]]
                             [datahike.datom :refer [combine-cmp]]
                             [datahike.tools :refer [case-tree raise]]))
   (:refer-clojure :exclude [seqable?])
@@ -175,35 +176,50 @@
                            (filter (fn [ d] (= tx (datom-tx d)))))
                       (ha/<? (-slice eavt (datom e a nil tx0) (datom e a nil txmax) :eavt)) ;; e a _ _
                       (->> (ha/<? (-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)) ;; e _ v tx
-                           (filter (fn [^js/Datom d] (and (= v (.-v d))
+                           (filter (fn [^Datom d] (and (= v (.-v d))
                                                        (= tx (datom-tx d))))))
                       (->> (ha/<? (-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)) ;; e _ v _
-                           (filter (fn [^js/Datom d] (= v (.-v d)))))
+                           (filter (fn [^Datom d] (= v (.-v d)))))
                       (->> (ha/<? (-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)) ;; e _ _ tx
-                           (filter (fn [^js/Datom d] (= tx (datom-tx d)))))
+                           (filter (fn [^Datom d] (= tx (datom-tx d)))))
                       (ha/<? (-slice eavt (datom e nil nil tx0) (datom e nil nil txmax) :eavt)) ;; e _ _ _
                       (if indexed?                              ;; _ a v tx
                         (->> (ha/<? (-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet))
-                             (filter (fn [^js/Datom d] (= tx (datom-tx d)))))
+                             (filter (fn [^Datom d] (= tx (datom-tx d)))))
                         (->> (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt))
-                             (filter (fn [^js/Datom d] (and (= v (.-v d))
+                             (filter (fn [^Datom d] (and (= v (.-v d))
                                                          (= tx (datom-tx d)))))))
                       (if indexed?                              ;; _ a v _
                         (ha/<? (-slice avet (datom e0 a v tx0) (datom emax a v txmax) :avet))
                         (->> (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt))
-                             (filter (fn [^js/Datom d] (= v (.-v d))))))
+                             (filter (fn [^Datom d] (= v (.-v d))))))
                       (->> (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)) ;; _ a _ tx
                            (filter (fn [ d] (= tx (datom-tx d)))))
                       (ha/<? (-slice aevt (datom e0 a nil tx0) (datom emax a nil txmax) :aevt)) ;; _ a _ _
-                      (filter (fn [^js/Datom d] (and (= v (.-v d)) (= tx (datom-tx d)))) (ha/<? (-all eavt))) ;; _ _ v tx
-                      (filter (fn [^js/Datom d] (= v (.-v d))) (ha/<? (-all eavt))) ;; _ _ v _
+                      (filter (fn [^Datom d] (and (= v (.-v d)) (= tx (datom-tx d)))) (ha/<? (-all eavt))) ;; _ _ v tx
+                      (filter (fn [^Datom d] (= v (.-v d))) (ha/<? (-all eavt))) ;; _ _ v _
                       (filter (fn [d] (= tx (datom-tx d))) (ha/<? (-all eavt))) ;; _ _ _ tx
                       (ha/<? (-all eavt))])))))
+ 
+ (comment 
+   
+   ;;
+    (macroexpand-1
+     '(defrecord-updatable DB []))
 
-   #_(defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
+
+
+
+
+   ;;
+        )
+
+
+ #_(macroexpand
+  '(defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
      #?@(:cljs
          [IHash (-hash [db] hash)
-          IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+          IEquiv (-equiv [db other] (equiv-db db other))
           ISeqable (-seq [db] (-seq (.-eavt db)))
           IReversible (-rseq [db] (-rseq (.-eavt db)))
           ICounted (-count [db] (count (.-eavt db)))
@@ -211,7 +227,7 @@
           IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
           IEditableCollection (-as-transient [db] (db-transient db))
           ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
-          (-persistent! [db] (db-persistent! db))]
+          #_(-persistent! [db] (db-persistent! db))]
 
          :clj
          [Object (hashCode [db] hash)
@@ -225,7 +241,7 @@
           (asTransient [db] (db-transient db))
           clojure.lang.ITransientCollection
           (conj [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
-          (persistent [db] (db-persistent! db))])
+          #_(persistent [db] (db-persistent! db))])
 
      IDB
      (-schema [db] (.-schema db))
@@ -259,7 +275,7 @@
                                     index-type))))
 
      (-rseek-datoms [db index-type cs]
-                    (-> (ha/<?? 
+                    (-> (ha/<??
                          (ha/go-try
                           (-slice (get db index-type)
                                   (ha/<? (components->pattern db index-type cs e0 tx0))
@@ -286,7 +302,7 @@
      (diff-similar [a b]
                    (let [datoms-a (ha/<?? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))
                          datoms-b (ha/<?? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))]
-                     (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick))))
+                     (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick)))))
 
    (defn db? [x]
      (and (satisfies? ISearch x)
@@ -504,12 +520,12 @@
    (defn get-current-values [rschema datoms]
      (->> datoms
           (filter datom-added)
-          (group-by (fn [^js/Datom datom] [(.-e datom) (.-a datom)]))
+          (group-by (fn [^Datom datom] [(.-e datom) (.-a datom)]))
           (mapcat
            (fn [[[_ a] entities]]
              (if (contains? (get-in rschema [:db.cardinality/many]) a)
                entities
-               [(reduce (fn [^js/Datom datom-0 ^js/Datom datom-1]
+               [(reduce (fn [^Datom datom-0 ^Datom datom-1]
                           (if (> (datom-tx datom-0) (datom-tx datom-1))
                             datom-0
                             datom-1)) entities)])))))
@@ -520,13 +536,13 @@
 
    (defn filter-as-of-datoms [datoms time-point db]
      (ha/go-try 
-      (let [as-of-pred (fn [^js/Datom d]
+      (let [as-of-pred (fn [^Datom d]
                          (if (date? time-point)
                            (.before ^Date (.-v d) ^Date time-point)
                            (<= (dd/datom-tx d) time-point)))
             filtered-tx-ids (ha/<? (filter-txInstant datoms as-of-pred db))
             filtered-datoms (->> datoms
-                                 (filter (fn [^js/Datom d] (contains? filtered-tx-ids (datom-tx d))))
+                                 (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))
                                  (get-current-values (-rschema db)))]
         filtered-datoms)))
 
@@ -626,7 +642,7 @@
             filtered-tx-ids (ha/<? (filter-txInstant datoms since-pred db))]
         (->> datoms
              (filter datom-added)
-             (filter (fn [^js/Datom d] (contains? filtered-tx-ids (datom-tx d))))))))
+             (filter (fn [^Datom d] (contains? filtered-tx-ids (datom-tx d))))))))
 
    (defn- filter-before [datoms ^Date before-date db]
      (ha/go-try
@@ -634,7 +650,7 @@
                           (.before ^Date (.-v d) before-date))
             filtered-tx-ids (ha/<? (filter-txInstant datoms before-pred db))]
         (filter
-         (fn [^js/Datom d]
+         (fn [^Datom d]
            (contains? filtered-tx-ids (datom-tx d)))
          datoms))))
 
@@ -836,7 +852,7 @@
 
    (defn get-max-tx [eavt]
      (ha/go-try
-      (transduce (map (fn [^js/Datom d] (datom-tx d))) max tx0 (ha/<? (-all eavt)))))
+      (transduce (map (fn [^Datom d] (datom-tx d))) max tx0 (ha/<? (-all eavt)))))
 #_(
    (defn ^DB init-db
      ([datoms] (init-db datoms nil nil))
