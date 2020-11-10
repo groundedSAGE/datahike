@@ -6,7 +6,7 @@
         com.taoensso/timbre           {:mvn/version "4.10.0"}
         io.replikativ/hitchhiker-tree {:git/url "https://github.com/groundedSAGE/hitchhiker-tree.git"
                                        :sha "60b8dc9c36a3d9c54727d664d2f54ad5d593a35f"}
-        io.replikativ/konserve      {:git/url "https://github.com/replikativ/konserve.git"
+        io.replikativ/konserve      {:git/url "https://github.com/groundedSAGE/konserve.git"
                                      :sha "f904359fc91fd6e6c36b9cd320d7beadaf5a15b7"}
         io.replikativ/superv.async    {:mvn/version "0.2.11"}
         io.lambdaforge/datalog-parser {:mvn/version "0.1.8-SNAPSHOT"}
