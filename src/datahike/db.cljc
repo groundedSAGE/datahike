@@ -299,65 +299,66 @@
           (satisfies? IDB x)))
 
 ;; ----------------------------------------------------------------------------
-   (defrecord-updatable FilteredDB [unfiltered-db pred]
-     #?@(:cljs
-         [IEquiv (-equiv [db other]  (equiv-db db other)) ;; TODO: do a take on this - was <??
-          ISeqable (-seq [db]  (-datoms db :eavt [])) ;; TODO: do a take on this - was <??
-          ICounted (-count [db] (ha/go-try (count (ha/<? (-datoms db :eavt []))))) ;; TODO: do a take on this - was <??
-          IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
-          IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on FilteredDB")))
+(defrecord-updatable FilteredDB [unfiltered-db pred]
+  #?@(:cljs
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
+       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
 
-          ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on FilteredDB")))
-                           ([_ _ _] (throw (js/Error. "-lookup is not supported on FilteredDB"))))
+       IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on FilteredDB")))
 
-          IAssociative (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
-          (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on FilteredDB")))]
+       ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on FilteredDB")))
+                        ([_ _ _] (throw (js/Error. "-lookup is not supported on FilteredDB"))))
 
-         :clj
-         [clojure.lang.IPersistentCollection
-          (count [db] (count (ha/<?? (-datoms db :eavt []))))
-          (equiv [db o] (ha/<?? (equiv-db db o)))
-          (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on FilteredDB")))
-          (empty [db] (throw (UnsupportedOperationException. "empty is not supported on FilteredDB")))
+       IAssociative (-contains-key? [_ _] (throw (js/Error. "-contains-key? is not supported on FilteredDB")))
+       (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on FilteredDB")))]
 
-          clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
+      :clj
+      [clojure.lang.IPersistentCollection
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
+       (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on FilteredDB")))
+       (empty [db] (throw (UnsupportedOperationException. "empty is not supported on FilteredDB")))
 
-          clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on FilteredDB")))
-          (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on FilteredDB")))
-          clojure.lang.IKeywordLookup (getLookupThunk [db k]
-                                                      (throw (UnsupportedOperationException. "getLookupThunk is not supported on FilteredDB")))
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
-          clojure.lang.Associative
-          (containsKey [e k] (throw (UnsupportedOperationException. "containsKey is not supported on FilteredDB")))
-          (entryAt [db k] (throw (UnsupportedOperationException. "entryAt is not supported on FilteredDB")))
-          (assoc [db k v] (throw (UnsupportedOperationException. "assoc is not supported on FilteredDB")))])
+       clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on FilteredDB")))
+       (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on FilteredDB")))
+       clojure.lang.IKeywordLookup (getLookupThunk [db k]
+                                                   (throw (UnsupportedOperationException. "getLookupThunk is not supported on FilteredDB")))
 
-     IDB
-     (-schema [db] (-schema (.-unfiltered-db db)))
-     (-rschema [db] (-rschema (.-unfiltered-db db)))
-     (-attrs-by [db property] (-attrs-by (.-unfiltered-db db) property))
-     (-temporal-index? [db] (-keep-history? db))
-     (-keep-history? [db] (-keep-history? (.-unfiltered-db db)))
-     (-max-tx [db] (-max-tx (.-unfiltered-db db)))
-     (-max-eid [db] (-max-eid (.-unfiltered-db db)))
-     (-config [db] (-config (.-unfiltered-db db)))
+       clojure.lang.Associative
+       (containsKey [e k] (throw (UnsupportedOperationException. "containsKey is not supported on FilteredDB")))
+       (entryAt [db k] (throw (UnsupportedOperationException. "entryAt is not supported on FilteredDB")))
+       (assoc [db k v] (throw (UnsupportedOperationException. "assoc is not supported on FilteredDB")))])
 
-     ISearch
-     (-search [db pattern]
-              (filter (.-pred db) (-search (.-unfiltered-db db) pattern)))
+  IDB
+  (-schema [db] (-schema (.-unfiltered-db db)))
+  (-rschema [db] (-rschema (.-unfiltered-db db)))
+  (-attrs-by [db property] (-attrs-by (.-unfiltered-db db) property))
+  (-temporal-index? [db] (-keep-history? db))
+  (-keep-history? [db] (-keep-history? (.-unfiltered-db db)))
+  (-max-tx [db] (-max-tx (.-unfiltered-db db)))
+  (-max-eid [db] (-max-eid (.-unfiltered-db db)))
+  (-config [db] (-config (.-unfiltered-db db)))
 
-     IIndexAccess
-     (-datoms [db index cs]
-              (filter (.-pred db) (-datoms (.-unfiltered-db db) index cs)))
+  ISearch
+  (-search [db pattern]
+           (filter (.-pred db) (-search (.-unfiltered-db db) pattern)))
 
-     (-seek-datoms [db index cs]
-                   (filter (.-pred db) (-seek-datoms (.-unfiltered-db db) index cs)))
+  IIndexAccess
+  (-datoms [db index cs]
+           (filter (.-pred db) (-datoms (.-unfiltered-db db) index cs)))
 
-     (-rseek-datoms [db index cs]
-                    (filter (.-pred db) (-rseek-datoms (.-unfiltered-db db) index cs)))
+  (-seek-datoms [db index cs]
+                (filter (.-pred db) (-seek-datoms (.-unfiltered-db db) index cs)))
 
-     (-index-range [db attr start end]
-                   (filter (.-pred db) (-index-range (.-unfiltered-db db) attr start end))))
+  (-rseek-datoms [db index cs]
+                 (filter (.-pred db) (-rseek-datoms (.-unfiltered-db db) index cs)))
+
+  (-index-range [db attr start end]
+                (filter (.-pred db) (-index-range (.-unfiltered-db db) attr start end))))
 
    (defn- search-current-indices [^DB db pattern]
      (let [[_ a _ _] pattern]
