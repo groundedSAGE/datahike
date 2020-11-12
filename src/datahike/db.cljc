@@ -203,94 +203,94 @@
  
 
  
-  (defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
-    #?@(:cljs
-        [IHash (-hash [db] hash)
-         IEquiv (-equiv [db other] (equiv-db db other))
-         ISeqable (-seq [db] (-seq (.-eavt db)))
-         IReversible (-rseq [db] (-rseq (.-eavt db)))
-         ICounted (-count [db] (count (.-eavt db)))
-         IEmptyableCollection (-empty [db] (empty-db (.-schema db)))
-         IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
-         IEditableCollection (-as-transient [db] (db-transient db))
-         ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
-         (-persistent! [db] (db-persistent! db))]
+(defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
+  #?@(:cljs
+      [IHash (-hash [db] hash)
+       IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+       ISeqable (-seq [db] (-seq (.-eavt db)))
+       IReversible (-rseq [db] (-rseq (.-eavt db)))
+       ICounted (-count [db] (count (.-eavt db)))
+       IEmptyableCollection (-empty [db] (empty-db (.-schema db)))
+       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
+       IEditableCollection (-as-transient [db] (db-transient db))
+       ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
+       (-persistent! [db] (db-persistent! db))]
 
-        :clj
-        [Object (hashCode [db] hash)
-         clojure.lang.IHashEq (hasheq [db] hash)
-         clojure.lang.Seqable (seq [db] (-seq eavt))
-         clojure.lang.IPersistentCollection
-         (count [db] (-count eavt))
-         (equiv [db other] (ha/<?? (equiv-db db other)))
-         (empty [db] (empty-db schema))
-         clojure.lang.IEditableCollection
-         (asTransient [db] (db-transient db))
-         clojure.lang.ITransientCollection
-         (conj [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
-         (persistent [db] (db-persistent! db))])
+      :clj
+      [Object (hashCode [db] hash)
+       clojure.lang.IHashEq (hasheq [db] hash)
+       clojure.lang.Seqable (seq [db] (-seq eavt))
+       clojure.lang.IPersistentCollection
+       (count [db] (-count eavt))
+       (equiv [db other] (ha/<?? (equiv-db db other)))
+       (empty [db] (empty-db schema))
+       clojure.lang.IEditableCollection
+       (asTransient [db] (db-transient db))
+       clojure.lang.ITransientCollection
+       (conj [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
+       (persistent [db] (db-persistent! db))])
 
-    IDB
-    (-schema [db] (.-schema db))
-    (-rschema [db] (.-rschema db))
-    (-attrs-by [db property] ((.-rschema db) property))
-    (-temporal-index? [db] (-keep-history? db))
-    (-keep-history? [db] (-> db -config :keep-history?))
-    (-max-tx [db] (.-max-tx db))
-    (-max-eid [db] (.-max-eid db))
-    (-config [db] (.-config db))
+  IDB
+  (-schema [db] (.-schema db))
+  (-rschema [db] (.-rschema db))
+  (-attrs-by [db property] ((.-rschema db) property))
+  (-temporal-index? [db] (-keep-history? db))
+  (-keep-history? [db] (-> db -config :keep-history?))
+  (-max-tx [db] (.-max-tx db))
+  (-max-eid [db] (.-max-eid db))
+  (-config [db] (.-config db))
 
-    ISearch
-    (-search [db pattern]
-             (let [[_ a _ _] pattern
-                   {:keys [eavt aevt avet]} db]
-               (search-indices eavt aevt avet pattern (indexing? db a) false)))
+  ISearch
+  (-search [db pattern]
+           (let [[_ a _ _] pattern
+                 {:keys [eavt aevt avet]} db]
+             (search-indices eavt aevt avet pattern (indexing? db a) false)))
 
-    IIndexAccess
-    (-datoms [db index-type cs]
-             (ha/go-try
-              (ha/<?
-               (-slice (get db index-type)
-                       (ha/<? (components->pattern db index-type cs e0 tx0))
-                       (ha/<? (components->pattern db index-type cs emax txmax))
-                       index-type))))
+  IIndexAccess
+  (-datoms [db index-type cs]
+           (ha/go-try
+            (ha/<?
+             (-slice (get db index-type)
+                     (ha/<? (components->pattern db index-type cs e0 tx0))
+                     (ha/<? (components->pattern db index-type cs emax txmax))
+                     index-type))))
 
-    (-seek-datoms [db index-type cs]  ;; TODO: do a take on this
-                  (ha/go-try
-                   (-slice (get db index-type)
-                           (ha/<? (components->pattern db index-type cs e0 tx0))
-                           (datom emax nil nil txmax)
-                           index-type)))
-    (-rseek-datoms [db index-type cs]
-                   (ha/go-try
-                    (-> (ha/<?
+  (-seek-datoms [db index-type cs]
+                (ha/<?? (ha/go-try
                          (-slice (get db index-type)
                                  (ha/<? (components->pattern db index-type cs e0 tx0))
                                  (datom emax nil nil txmax)
-                                 index-type))
-                        vec
-                        rseq)))
+                                 index-type))))
 
-    (-index-range [db attr start end] ;; TODO: do a take on this
-                  (when-not (indexing? db attr)
-                    (raise "Attribute" attr "should be marked as :db/index true" {}))
-                  (validate-attr attr (list '-index-range 'db attr start end) db)
-                  (let [{:keys [avet]} db]
-                    (-slice avet
-                            (ha/<? (resolve-datom db nil attr start nil e0 tx0))
-                            (ha/<? (resolve-datom db nil attr end nil emax txmax))
-                            :avet)))
+  (-rseek-datoms [db index-type cs]
+                 (-> (ha/<??
+                      (ha/go-try
+                       (-slice (get db index-type)
+                               (ha/<? (components->pattern db index-type cs e0 tx0))
+                               (datom emax nil nil txmax)
+                               index-type)))
+                     vec
+                     rseq))
 
+  (-index-range [db attr start end]
+                (when-not (indexing? db attr)
+                  (raise "Attribute" attr "should be marked as :db/index true" {}))
+                (validate-attr attr (list '-index-range 'db attr start end) db)
+                (let [{:keys [avet]} db]
+                  (ha/<??
+                   (-slice avet
+                           (ha/<? (resolve-datom db nil attr start nil e0 tx0))
+                           (ha/<? (resolve-datom db nil attr end nil emax txmax))
+                           :avet))))
 
-    clojure.data/EqualityPartition
-    (equality-partition [x] :datahike/db)
+  clojure.data/EqualityPartition
+  (equality-partition [x] :datahike/db)
 
-    clojure.data/Diff
-    (diff-similar [a b]
-                  (ha/go-try
-                   (let [datoms-a (ha/<? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))
-                         datoms-b (ha/<? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))]
-                     (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick)))))
+  clojure.data/Diff
+  (diff-similar [a b]
+                (let [datoms-a (ha/<?? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))
+                      datoms-b (ha/<?? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))]
+                  (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick))))
 
 
    (defn db? [x]

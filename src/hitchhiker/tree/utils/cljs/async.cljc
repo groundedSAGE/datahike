@@ -57,9 +57,11 @@
      "Same as core.async <!! but throws an exception if the channel returns a
   throwable error."
      [ch]
-     (if-async?
-      `(throw-if-exception (async/<!! ~ch))
-      ch)))
+     (if (:ns &env)
+       `(js/Error "This is a syncronous call. Not allowed in JS environment")
+       (if-async?
+        `(throw-if-exception (async/<!! ~ch))
+        ch))))
 
 (defn reduce<
   "Reduces over a sequence s with a go function go-f given the initial value

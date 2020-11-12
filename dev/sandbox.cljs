@@ -13,6 +13,10 @@
 
 
 (comment
+  
+  (println "test")
+  
+  (macroexpand-1 '(ha/<?? (ha/go-try (+ 1 1))))
 
   (println working-tx-dummy)
 
