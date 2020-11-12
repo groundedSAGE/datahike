@@ -201,25 +201,8 @@
                       (filter (fn [d] (= tx (datom-tx d))) (ha/<? (-all eavt))) ;; _ _ _ tx
                       (ha/<? (-all eavt))])))))
  
- (comment
 
-   ;;
-   (macroexpand-1
-    '(defrecord-updatable DB []))
-   
-    (macroexpand
-     '(ha/<?? (+ 1 1)))
-
-   (macroexpand '(if-cljs "working" "not"))
-
-
-   (def result '(do (clojure.core/defrecord DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]) (clojure.core/extend-type DB IHash (-hash [db] hash) IEquiv (-equiv [db other] (equiv-db db other)) ISeqable (-seq [db] (-seq (.-eavt db))) IReversible (-rseq [db] (-rseq (.-eavt db))) ICounted (-count [db] (count (.-eavt db))) IEmptyableCollection (-empty [db] (empty-db (.-schema db))) IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts)) IEditableCollection (-as-transient [db] (db-transient db)) ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {}))) (-persistent! [db] (db-persistent! db)) IDB (-schema [db] (.-schema db)) (-rschema [db] (.-rschema db)) (-attrs-by [db property] ((.-rschema db) property)) (-temporal-index? [db] (-keep-history? db)) (-keep-history? [db] (-> db -config :keep-history?)) (-max-tx [db] (.-max-tx db)) (-max-eid [db] (.-max-eid db)) (-config [db] (.-config db)) ISearch (-search [db pattern] (let [[_ a _ _] pattern] (search-indices eavt aevt avet pattern (indexing? db a) false))) IIndexAccess (-datoms [db index-type cs] (ha/go-try (ha/<? (-slice (get db index-type) (ha/<? (components->pattern db index-type cs e0 tx0)) (ha/<? (components->pattern db index-type cs emax txmax)) index-type)))) (-seek-datoms [db index-type cs] (ha/<?? (ha/go-try (-slice (get db index-type) (ha/<? (components->pattern db index-type cs e0 tx0)) (datom emax nil nil txmax) index-type)))) (-rseek-datoms [db index-type cs] (-> (ha/<?? (ha/go-try (-slice (get db index-type) (ha/<? (components->pattern db index-type cs e0 tx0)) (datom emax nil nil txmax) index-type))) vec rseq)) (-index-range [db attr start end] (when-not (indexing? db attr) (raise "Attribute" attr "should be marked as :db/index true" {})) (validate-attr attr (list (quote -index-range) (quote db) attr start end) db) (ha/<?? (ha/go-try (ha/<? (-slice avet (ha/<? (resolve-datom db nil attr start nil e0 tx0)) (ha/<? (resolve-datom db nil attr end nil emax txmax)) :avet))))) clojure.data/EqualityPartition (equality-partition [x] :datahike/db) clojure.data/Diff (diff-similar [a b] (let [datoms-a (ha/<?? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt)) datoms-b (ha/<?? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))] (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick))))))
-
-   (clojure.pprint/pprint result)
-   ;;
-   )
  
- ;(macroexpand-1)
   (defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
     #?@(:cljs
         [IHash (-hash [db] hash)
@@ -852,6 +835,7 @@
      ([datoms schema] (init-db datoms schema nil))
      ([datoms schema config]
       (validate-schema schema)
+      (println "point: " 1)
       (ha/go-try (let [{:keys [index schema-flexibility keep-history?] :as config} (merge (dc/storeless-config) config)
                        rschema (rschema (merge implicit-schema schema))
                        indexed (:db/index rschema)
@@ -860,6 +844,7 @@
                        avet (ha/<? (di/init-index index datoms indexed :avet))
                        max-eid (ha/<? (init-max-eid eavt))
                        max-tx (ha/<? (get-max-tx eavt))]
+                   (println "point: " 2)
                    (map->DB (merge {:schema  (merge schema (when (= :read schema-flexibility) implicit-schema))
                                     :rschema rschema
                                     :config  config
@@ -1387,7 +1372,8 @@
          (ha/<? (transact-report report new-datom))
          report)
        (let [^Datom old-datom (first (ha/<? (-search db [e a])))
-             ov #_(when old-datom) (.-v old-datom)]               ;; TODO: This needs to be gaurded to avoid null pointer
+             ov #?(:clj (when old-datom (.-v old-datom))
+                   :cljs (.-v old-datom))]               ;; TODO: There is a type error which doesn't allow the when on cljs.
          (if old-datom 
            (if (= ov v)
              report
@@ -1521,11 +1507,13 @@
 
 
 (defn transact-tx-data [initial-report initial-es]
+  (println "Point: " 3)
   (when-not (or (nil? initial-es)
                 (sequential? initial-es))
     (raise "Bad transaction data " initial-es ", expected sequential collection"
            {:error :transact/syntax, :tx-data initial-es}))
   (async/go
+   (println "Point: " 4)
     (loop [report (update initial-report :db-after transient)
            es (if (-keep-history? (get-in initial-report [:db-before]))
                 (concat [[:db/add (current-tx report) :db/txInstant (get-time) (current-tx report)]] initial-es)
