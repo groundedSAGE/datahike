@@ -6,11 +6,6 @@
 
 (def ^:dynamic *async?* true)
 
-(defmacro funny [s]
-  (if *async?*
-    (str s "haha so funny")
-    (str s "not so funny")))
-
 (defmacro if-async?
   ""
   {:style/indent 2}
