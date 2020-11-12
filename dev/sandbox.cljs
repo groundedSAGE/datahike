@@ -13,9 +13,15 @@
 
 
 (comment
-  
+
+  (require '[datahike.db :as dd])
+  (require '[datahike.datom :refer [datom]])
+
+  (let [db (dd/init-db [(datom 1 :foo "bar") (datom 2 :qux :quun)])]
+    (dd/-datoms db :eavt nil))
+
   (println "test")
-  
+
   (macroexpand-1 '(ha/<?? (ha/go-try (+ 1 1))))
 
   (println working-tx-dummy)
