@@ -638,10 +638,11 @@
 
 (defrecord-updatable SinceDB [origin-db time-point]
   #?@(:cljs
-      [IEquiv (-equiv [db other] (equiv-db db other)) ;; TODO: do a take on this - was <??
-       ISeqable (-seq [db] (-datoms db :eavt [])) ;; TODO: do a take on this - was <??
-       ICounted (-count [db] (ha/go-try (count (ha/<? (-datoms db :eavt []))))) ;; TODO: do a take on this - was <??
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
+
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on SinceDB")))
 
        ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on SinceDB")))
@@ -651,12 +652,12 @@
        (-assoc [_ _ _] (throw (js/Error. "-assoc is not supported on SinceDB")))]
       :clj
       [clojure.lang.IPersistentCollection
-       (count [db] (ha/go-try (count (ha/<? (-datoms db :eavt []))))) ;; TODO: do a take on this - was <??
-       (equiv [db o] (equiv-db db o)) ;; TODO: do a take on this - was <??
+       (count [db] (count (ha/<?? (-datoms db :eavt []))))
+       (equiv [db o] (ha/<?? (equiv-db db o)))
        (cons [db [k v]] (throw (UnsupportedOperationException. "cons is not supported on SinceDB")))
        (empty [db] (throw (UnsupportedOperationException. "empty is not supported on SinceDB")))
 
-       clojure.lang.Seqable (seq [db] (-datoms db :eavt [])) ;; TODO: do a take on this - was <??
+       clojure.lang.Seqable (seq [db] (ha/<?? (-datoms db :eavt [])))
 
        clojure.lang.ILookup (valAt [db k] (throw (UnsupportedOperationException. "valAt/2 is not supported on SinceDB")))
        (valAt [db k nf] (throw (UnsupportedOperationException. "valAt/3 is not supported on SinceDB")))
@@ -697,26 +698,29 @@
                   (filter-since (.-time-point db) origin-db)
                   (ha/<?)))))
 
-  (-seek-datoms [db index-type cs] ;; TODO: do a take on this - was <??
+  (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (ha/go-try
-                   (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
-                       (filter-since (.-time-point db) origin-db)
-                       (ha/<?)))))
-
-  (-rseek-datoms [db index-type cs] ;; TODO: do a take on this - was <??
-                 (let [origin-db (.-origin-db db)]
+                  (ha/<??
                    (ha/go-try
-                    (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                    (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
                         (filter-since (.-time-point db) origin-db)
-                        (ha/<?)))))
+                        (ha/<?))))))
 
-  (-index-range [db attr start end] ;; TODO: do a take on this - was <??
+  (-rseek-datoms [db index-type cs]
+                 (let [origin-db (.-origin-db db)]
+                   (ha/<??
+                    (ha/go-try
+                     (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                         (filter-since (.-time-point db) origin-db)
+                         (ha/<?))))))
+
+  (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (ha/go-try
-                   (-> (ha/<? (temporal-index-range origin-db db attr start end))
-                       (filter-since (.-time-point db) origin-db)
-                       (ha/<?))))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-index-range origin-db db attr start end))
+                        (filter-since (.-time-point db) origin-db)
+                        (ha/<?)))))))
 
 ;; ----------------------------------------------------------------------------
 
