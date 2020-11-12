@@ -65,7 +65,7 @@
 
 (defn bool-from-env
   [key default]
-  (let [bool-str (get env key default)] 
+  (let [bool-str (get env key default)]
     #?(:clj (try
               (Boolean/parseBoolean bool-str)
               (catch Exception _ default))

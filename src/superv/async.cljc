@@ -257,7 +257,6 @@ throwable object or the context has been aborted."
                            (ex-info "Aborted operations" {:type :aborted})
                            val#))))
 
-
 (defn <??
   "Same as core.async <!! but throws an exception if the channel returns a
 throwable object or the context has been aborted. "
@@ -265,12 +264,12 @@ throwable object or the context has been aborted. "
   #?(:cljs (throw (js/Error. "TODO: better error message"))
      :clj (do ;(println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
               ;(println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
-              (throw-if-exception S
-                                  (let [abort (-abort S)
-                                        [val port] (alts!! [abort ch] :priority :true)]
-                                    (if (= port abort)
-                                      (ex-info "Aborted operations" {:type :aborted})
-                                      val))))))
+            (throw-if-exception S
+                                (let [abort (-abort S)
+                                      [val port] (alts!! [abort ch] :priority :true)]
+                                  (if (= port abort)
+                                    (ex-info "Aborted operations" {:type :aborted})
+                                    val))))))
 
 #?(:clj
    (defmacro wrap-abort!

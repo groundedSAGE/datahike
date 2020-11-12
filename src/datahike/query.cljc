@@ -1,7 +1,7 @@
 (ns datahike.query
   (:require
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-   
+
    #?(:clj [hitchhiker.tree.utils.clojure.async :as ha])
    [clojure.set :as set]
    [clojure.string :as str]
@@ -27,20 +27,18 @@
                     RulesVar SrcVar Variable]
                    [datahike.datom Datom]
                    [java.lang.reflect Method]
-                   [java.util Date]))
-  
-  )
+                   [java.util Date])))
 
 
 ;; ----------------------------------------------------------------------------
-#_(
 
-   (def ^:const lru-cache-size 100)
+
+#_((def ^:const lru-cache-size 100)
 
    (declare -collect -resolve-clause resolve-clause)
 
 ;; Records
-   
+
    (defrecord Context [rels sources rules])
 
 ;; attrs:
@@ -52,7 +50,7 @@
 
 
 ;; Utilities
-   
+
 
    (defn single [coll]
      (assert (nil? (next coll)) "Expected single element")
@@ -173,7 +171,7 @@
 
 
 ;; built-ins
-   
+
 
    (defn- -differ? [& xs]
      (let [l (count xs)]
@@ -322,7 +320,7 @@
 
 
 ;;
-   
+
 
    (defn parse-rules [rules]
      (let [rules (if (string? rules) (edn/read-string rules) rules)] ;; for datahike.js interop
@@ -386,7 +384,7 @@
      (reduce resolve-in context (zipmap bindings values)))
 
 ;;
-   
+
    (def ^{:dynamic true
           :doc     "List of symbols in current pattern that might potentiall be resolved to refs"}
      *lookup-attrs* nil)
@@ -467,7 +465,7 @@
 
    (defn lookup-pattern-db [db pattern]
   ;; TODO optimize with bound attrs min/max values here
-     (ha/go-try 
+     (ha/go-try
       (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
             datoms (ha/<? (db/-search db search-pattern))
             attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
@@ -492,7 +490,7 @@
                           (filter (fn [[s _]] (free-var? s)))
                           (into {}))]
        (Relation. attr->idx (mapv to-array data))))            ;; FIXME to-array
-   
+
    (defn normalize-pattern-clause [clause]
      (if (source? (first clause))
        clause
@@ -632,7 +630,7 @@
        (update context :rels collapse-rels new-rel)))
 
 ;;; RULES
-   
+
    (defn rule? [context clause]
      (and (sequential? clause)
           (contains? (:rules context)
@@ -715,7 +713,7 @@
                       [active-gs pending-gs] (split-guards (concat (:prefix-clauses frame) clauses)
                                                            (concat guards (:pending-guards frame)))]
                   (if (some #(= % '[(-differ?)]) active-gs)     ;; trivial always false case like [(not= [?a ?b] [?a ?b])]
-                    
+
                 ;; this branch has no data, just drop it from stack
                     (recur (next stack) rel)
 
