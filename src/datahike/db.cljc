@@ -429,11 +429,10 @@
 (defrecord-updatable HistoricalDB [origin-db]
   #?@(:cljs
       [IEquiv (-equiv [db other] (equiv-db db other))
-       ISeqable (-seq [db]  (-datoms db :eavt [])) ;; TODO: do a take on this - was <??
-       ICounted (-count [db] (ha/go-try (count (ha/<? (-datoms db :eavt []))))) ;; TODO: do a take on this - was <??
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on HistoricalDB")))
-
        ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on HistoricalDB")))
                         ([_ _ _] (throw (js/Error. "-lookup is not supported on HistoricalDB"))))
 
@@ -476,13 +475,13 @@
            (temporal-search (.-origin-db db) pattern))
 
   IIndexAccess
-  (-datoms [db index-type cs] (temporal-datoms (.-origin-db db) index-type cs))
+  (-datoms [db index-type cs] (ha/go-try (ha/<? (temporal-datoms (.-origin-db db) index-type cs))))
 
-  (-seek-datoms [db index-type cs] (temporal-seek-datoms (.-origin-db db) index-type cs)) ;; TODO: do a take on this - was <??
+  (-seek-datoms [db index-type cs] (ha/<?? (temporal-seek-datoms (.-origin-db db) index-type cs)))
 
-  (-rseek-datoms [db index-type cs] (temporal-rseek-datoms (.-origin-db db) index-type cs)) ;; TODO: do a take on this - was <??
+  (-rseek-datoms [db index-type cs] (ha/<?? (temporal-rseek-datoms (.-origin-db db) index-type cs)))
 
-  (-index-range [db attr start end] (temporal-index-range (.-origin-db db) db attr start end))) ;; TODO: do a take on this - was <??
+  (-index-range [db attr start end] (ha/<?? (temporal-index-range (.-origin-db db) db attr start end))))
 
 (defn filter-txInstant [datoms pred db]  ; TODO: was a transducer before. May want to keep the transducer for JVM
   (ha/go-try
