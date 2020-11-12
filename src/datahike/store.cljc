@@ -1,7 +1,7 @@
 (ns datahike.store
   (:require [hitchhiker.tree.bootstrap.konserve :as kons]
             [clojure.spec.alpha :as s]
-            [konserve.filestore :as fs]
+            #?(:clj [konserve.filestore :as fs])
             [konserve.memory :as mem]
             [superv.async :refer [<?? S]]
             [environ.core :refer [env]]))
