@@ -530,11 +530,13 @@
 
 (defrecord-updatable AsOfDB [origin-db time-point]
   #?@(:cljs
-      [IEquiv (-equiv [db other] (equiv-db db other)) ;; TODO: do a take on this - was <??
-       ISeqable (-seq [db]  (-datoms db :eavt [])) ;; TODO: do a take on this - was <??
-       ICounted (-count [db] (ha/go-try (count (ha/<? (-datoms db :eavt []))))) ;; TODO: do a take on this - was <??
+      [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+       ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
+       ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
+
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on AsOfDB")))
+
 
        ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on AsOfDB")))
                         ([_ _ _] (throw (js/Error. "-lookup is not supported on AsOfDB"))))
@@ -589,26 +591,29 @@
                   (filter-as-of-datoms (.-time-point db) origin-db)
                   (ha/<?)))))
 
-  (-seek-datoms [db index-type cs] ;; TODO: do a take on this - was <??
+  (-seek-datoms [db index-type cs]
                 (let [origin-db (.-origin-db db)]
-                  (ha/go-try
-                   (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
-                       (filter-as-of-datoms (.-time-point db) origin-db)
-                       (ha/<?)))))
-
-  (-rseek-datoms [db index-type cs] ;; TODO: do a take on this - was <??
-                 (let [origin-db (.-origin-db db)]
+                  (ha/<??
                    (ha/go-try
-                    (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                    (-> (ha/<? (temporal-seek-datoms origin-db index-type cs))
                         (filter-as-of-datoms (.-time-point db) origin-db)
-                        (ha/<?)))))
+                        (ha/<?))))))
 
-  (-index-range [db attr start end] ;; TODO: do a take on this - was <??
+  (-rseek-datoms [db index-type cs]
+                 (let [origin-db (.-origin-db db)]
+                   (ha/<??
+                    (ha/go-try
+                     (-> (ha/<? (temporal-rseek-datoms origin-db index-type cs))
+                         (filter-as-of-datoms (.-time-point db) origin-db)
+                         (ha/<?))))))
+
+  (-index-range [db attr start end]
                 (let [origin-db (.-origin-db db)]
-                  (ha/go-try
-                   (-> (ha/<? (temporal-index-range origin-db db attr start end))
-                       (filter-as-of-datoms (.-time-point db) origin-db)
-                       (ha/<?))))))
+                  (ha/<??
+                   (ha/go-try
+                    (-> (ha/<? (temporal-index-range origin-db db attr start end))
+                        (filter-as-of-datoms (.-time-point db) origin-db)
+                        (ha/<?)))))))
 
 (defn- filter-since [datoms time-point db]
   (ha/go-try
