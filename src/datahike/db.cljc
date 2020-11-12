@@ -642,7 +642,6 @@
        ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
        ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
        IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
-
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on SinceDB")))
 
        ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on SinceDB")))
@@ -840,7 +839,6 @@
   ([datoms schema] (init-db datoms schema nil))
   ([datoms schema config]
    (validate-schema schema)
-   (println "point: " 1)
    (ha/go-try (let [{:keys [index schema-flexibility keep-history?] :as config} (merge (dc/storeless-config) config)
                     rschema (rschema (merge implicit-schema schema))
                     indexed (:db/index rschema)
@@ -849,7 +847,6 @@
                     avet (ha/<? (di/init-index index datoms indexed :avet))
                     max-eid (ha/<? (init-max-eid eavt))
                     max-tx (ha/<? (get-max-tx eavt))]
-                (println "point: " 2)
                 (map->DB (merge {:schema  (merge schema (when (= :read schema-flexibility) implicit-schema))
                                  :rschema rschema
                                  :config  config
