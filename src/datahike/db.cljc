@@ -209,7 +209,7 @@
        IReversible (-rseq [db] (-rseq (.-eavt db)))
        ICounted (-count [db] (count (.-eavt db)))
        IEmptyableCollection (-empty [db] (empty-db (.-schema db)))
-       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
+       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts)) 
        IEditableCollection (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
        (-persistent! [db] (db-persistent! db))]
@@ -1361,6 +1361,10 @@
                               [:db.ensure/preds eid ensure preds]]))))
       entities)))
 
+(defn- get-datom-value [^Datom old-datom]
+  (println "old datom from get-datom-value" old-datom)
+  (when old-datom (.-v old-datom)))
+
 (defn- transact-add [{{{:keys [keep-history?]} :config :as db-after} :db-after :as report} [_ e a v tx :as ent]]
   (validate-attr a ent db-after)
   (validate-val v ent db-after)
@@ -1374,14 +1378,8 @@
        (if (empty? (ha/<? (-search db [e a v])))
          (ha/<? (transact-report report new-datom))
          report)
-       (let [_ (println "Before datom search")
-             ^Datom old-datom (first (ha/<? (-search db [e a])))
-             _ (println "After datom search")
-             _ (println "old datom" old-datom)
-             ov #?(:clj (when old-datom (.-v old-datom)) ;; TODO: There is a type error which doesn't allow the when on cljs.
-                   :cljs (.-v old-datom))
-             _ (println "After fetching value from datom")
-             _ (println "ov" old-datom)]               
+       (let [old-datom (first (ha/<? (-search db [e a])))  ;;TODO: review type hints in core.async or open bug report
+             ov (get-datom-value old-datom)]               
          (if old-datom
            (if (= ov v)
              report
@@ -1513,25 +1511,25 @@
       (raise "Purge entity is only available in temporal databases." {:error :transact/purge :operation op :tx-data entity}))))
 
 (defn transact-tx-data [initial-report initial-es]
-  (println "Point: " 3)
+  ;(println "Point: " 3)
   (when-not (or (nil? initial-es)
                 (sequential? initial-es))
     (raise "Bad transaction data " initial-es ", expected sequential collection"
            {:error :transact/syntax, :tx-data initial-es}))
   (async/go
-    (println "Point: " 4)
+    ;(println "Point: " 4)
     (loop [report (update initial-report :db-after transient)
            es (if (-keep-history? (get-in initial-report [:db-before]))
                 (concat [[:db/add (current-tx report) :db/txInstant (get-time) (current-tx report)]] initial-es)
                 initial-es)]
-      (println "Running loop")
+      ;(println "Running loop")
       (let [[entity & entities] es
             db (:db-after report)
             {:keys [tempids]} report]
         (cond
           (empty? es)
           (do
-            (println "Loop Point: " 1)
+            ;(println "Loop Point: " 1)
             (-> report
                 (assoc-in [:tempids :db/current-tx] (current-tx report))
                 (update-in [:db-after :max-tx] inc)
@@ -1539,12 +1537,12 @@
 
           (nil? entity)
           (do
-            (println "Loop Point: " 2)
+            ;(println "Loop Point: " 2)
             (recur report entities))
 
           (map? entity)
           (do
-            (println "Loop Point: " 4)
+            ;(println "Loop Point: " 4)
             (let [old-eid (:db/id entity)]
               (cond+
             ;; :db/current-tx / "datomic.tx" => tx
@@ -1556,7 +1554,7 @@
             ;; lookup-ref => resolved | error
                (sequential? old-eid)
                (do
-                 (println "Loop Point: " 5)
+                 ;(println "Loop Point: " 5)
                  (let [id (ha/<? (entid-strict db old-eid))]
                    (recur report
                           (cons (assoc entity :db/id id) entities))))
@@ -1566,7 +1564,7 @@
 
                (some? upserted-eid)
                (do
-                 (println "Loop Point: " 6)
+                 ;(println "Loop Point: " 6)
                  (if (and (tempid? old-eid)
                           (contains? tempids old-eid)
                           (not= upserted-eid (get tempids old-eid)))
@@ -1592,7 +1590,7 @@
                    (nil? old-eid)
                    (string? old-eid))
                (do
-                 (println "Loop Point: " 7)
+                 ;(println "Loop Point: " 7)
                  (let [new-eid (cond
                                  (nil? old-eid) (next-eid db)
                                  (tempid? old-eid) (or (get tempids old-eid)
@@ -1620,7 +1618,7 @@
 
           (sequential? entity)
           (do
-            (println "Loop Point: " 8)
+            ;(println "Loop Point: " 8)
             (let [[op e a v] entity]
               (cond
                 (= op :db.fn/call)
@@ -1670,17 +1668,17 @@
 
                 (tx-id? e)
                 (do
-                  (println "Loop Point: " 9)
+                  ;(println "Loop Point: " 9)
                   (recur (allocate-eid report e (current-tx report)) (cons [op (current-tx report) a v] entities)))
 
                 (and (ref? db a) (tx-id? v))
                 (do
-                  (println "Loop Point: " 10)
+                  ;(println "Loop Point: " 10)
                   (recur (allocate-eid report v (current-tx report)) (cons [op e a (current-tx report)] entities)))
 
                 (tempid? e)
                 (do
-                  (println "Loop Point: " 11)
+                  ;(println "Loop Point: " 11)
                   (let [upserted-eid (when (is-attr? db a :db.unique/identity)
                                        (:e (first (ha/<? (-datoms db :avet [a v])))))
                         allocated-eid (get tempids e)]
@@ -1691,25 +1689,26 @@
 
                 (and (ref? db a) (tempid? v))
                 (do
-                  (println "Loop Point: " 12)
+                  ;(println "Loop Point: " 12)
                   (if-let [vid (get tempids v)]
                     (recur report (cons [op e a vid] entities))
                     (recur (allocate-eid report v (next-eid db)) es)))
 
                 (= op :db/add)
                 (do
-                  (println "Loop Point: " 13)
-                  (println "Loop Point: " report)
-                  (println "Loop Point: " entity)
-                  (println "Loop Point: " entities)
-                  (let [_ (println "Loop Point:" "before new report")
+                  ;(println "Loop Point: " 13)
+                  ;(println "Loop Point: " report)
+                  ;(println "Loop Point: " entity)
+                  ;(println "Loop Point: " entities)
+                  (let [;_ (println "Loop Point:" "before new report")
                         new-report (ha/<? (transact-add report entity))
-                        _ (println "Loop Point:" "after new report")]
+                        ;_ (println "Loop Point:" "after new report")
+                        ]
                     (recur new-report entities)))
 
                 (= op :db/retract)
                 (do
-                  (println "Loop Point: " 14)
+                  ;(println "Loop Point: " 14)
                   (if-some [e (ha/<? (entid db e))]
                     (let [v (if (ref? db a) (ha/<? (entid-strict db v)) v)]
                       (validate-attr a entity db)
@@ -1722,7 +1721,7 @@
 
                 (= op :db.fn/retractAttribute)
                 (do
-                  (println "Loop Point: " 15)
+                  ;(println "Loop Point: " 15)
                   (if-let [e (ha/<? (entid db e))]
                     (let [_ (validate-attr a entity db)
                           datoms (vec (ha/<? (-search db [e a])))]
@@ -1733,7 +1732,7 @@
                 (or (= op :db.fn/retractEntity)
                     (= op :db/retractEntity))
                 (do
-                  (println "Loop Point: " 16)
+                  ;(println "Loop Point: " 16)
                   (if-let [e (ha/<? (entid db e))]
                     (let [e-datoms (vec (ha/<? (-search db [e])))
                           v-datoms (vec (mapcat (fn [a] (ha/<? (-search db [nil a e]))) (-attrs-by db :db.type/ref)))

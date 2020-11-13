@@ -31,21 +31,22 @@
   (async/go (println (async/<! (db/init-db []))))
 
 
-  (async/go (println "hmmm" (async/<! (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))))
+  (async/go (println (async/<! (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))))
+
 
   (defn with
     "Same as [[transact!]], but applies to an immutable database value. Returns transaction report (see [[transact!]])."
     ([db tx-data] (with db tx-data nil))
     ([db tx-data tx-meta]
      {:pre [(db/db? db)]}
-     (async/<!! (db/transact-tx-data (db/map->TxReport
-                                      {:db-before db
-                                       :db-after  db
-                                       :tx-data   []
-                                       :tempids   {}
-                                       :tx-meta   tx-meta}) tx-data))))
+     (db/transact-tx-data (db/map->TxReport
+                                       {:db-before db
+                                        :db-after  db
+                                        :tx-data   []
+                                        :tempids   {}
+                                        :tx-meta   tx-meta}) tx-data)))
 
-  (def bob-db (:db-after (with (async/<!! (db/empty-db)) [{:name "bob" :age 5}])))
+  (async/go (def bob-db (:db-after (async/<! (with (async/<! (db/empty-db)) [{:name "bob" :age 5}])))))
 
   (async/<!! (q/q '[:find ?a :where
                     [?e :name "bob"]

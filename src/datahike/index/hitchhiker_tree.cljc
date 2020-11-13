@@ -76,9 +76,11 @@
         [a b c d] (from-datom from index-type)
         [e f g h] (from-datom to index-type)
         xf (comp
-            (take-while (fn [^AMapEntry kv]
+            (take-while (fn [kv]
                            ;; prefix scan
-                          (let [key (.key kv)
+                          (println kv)
+                          (let [key #?(:clj (.key ^AMapEntry kv)
+                                       :cljs (first kv))
                                 [i j k l] key
                                 new (not (cond (and e f g h)
                                                (or (> (kc/-compare i e) 0)
@@ -101,7 +103,8 @@
                                                :else false))]
                             new)))
             (map (fn [kv]
-                   (let [[a b c d] (.key ^AMapEntry kv)]
+                   (let [[a b c d] #?(:clj (.key ^AMapEntry kv)
+                                      :cljs (first kv))]
                      (create-datom a b c d)))))
         iter-chan (async/chan 1 xf)
         _ (hmsg/forward-iterator iter-chan tree [a b c d])]
