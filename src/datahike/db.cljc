@@ -1374,9 +1374,12 @@
        (if (empty? (ha/<? (-search db [e a v])))
          (ha/<? (transact-report report new-datom))
          report)
-       (let [^Datom old-datom (first (ha/<? (-search db [e a])))
-             ov #?(:clj (when old-datom (.-v old-datom))
-                   :cljs (.-v old-datom))]               ;; TODO: There is a type error which doesn't allow the when on cljs.
+       (let [_ (println "Before datom search")
+             ^Datom old-datom (first (ha/<? (-search db [e a])))
+             _ (println "After datom search")
+             ov #?(:clj (when old-datom (.-v old-datom)) ;; TODO: There is a type error which doesn't allow the when on cljs.
+                   :cljs (.-v old-datom))
+             _ (println "After fetching value from datom")]               
          (if old-datom
            (if (= ov v)
              report
@@ -1694,7 +1697,13 @@
                 (= op :db/add)
                 (do
                   (println "Loop Point: " 13)
-                  (recur (ha/<? (transact-add report entity)) entities))
+                  (println "Loop Point: " report)
+                  (println "Loop Point: " entity)
+                  (println "Loop Point: " entities)
+                  (let [_ (println "Loop Point:" "before new report")
+                        new-report (ha/<? (transact-add report entity))
+                        _ (println "Loop Point:" "after new report")]
+                    (recur new-report entities)))
 
                 (= op :db/retract)
                 (do
