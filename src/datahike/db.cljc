@@ -1377,9 +1377,11 @@
        (let [_ (println "Before datom search")
              ^Datom old-datom (first (ha/<? (-search db [e a])))
              _ (println "After datom search")
+             _ (println "old datom" old-datom)
              ov #?(:clj (when old-datom (.-v old-datom)) ;; TODO: There is a type error which doesn't allow the when on cljs.
                    :cljs (.-v old-datom))
-             _ (println "After fetching value from datom")]               
+             _ (println "After fetching value from datom")
+             _ (println "ov" old-datom)]               
          (if old-datom
            (if (= ov v)
              report
