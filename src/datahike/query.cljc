@@ -1,22 +1,22 @@
 (ns datahike.query
   (:require
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
-
+   #?(:cljs [hitchhiker.tree.utils.cljs.async :as ha])
    #?(:clj [hitchhiker.tree.utils.clojure.async :as ha])
    [clojure.set :as set]
    [clojure.string :as str]
    [clojure.walk :as walk]
-   ;[datahike.db :as db]
+   [datahike.db :as db]
    [datahike.tools #?(:cljs :refer-macros :clj :refer) [raise]]
    [me.tonsky.persistent-sorted-set.arrays :as da]
    [datahike.lru]
    ;[datahike.impl.entity :as de]
-   ;#?@(:cljs [datalog.parser.type :refer [BindColl BindIgnore BindScalar BindTuple Constant
-   ;                                       FindColl FindRel FindScalar FindTuple PlainSymbol
-   ;                                       RulesVar SrcVar Variable]])
+   #?(:cljs [datalog.parser.type :refer [BindColl BindIgnore BindScalar BindTuple Constant
+                                         FindColl FindRel FindScalar FindTuple PlainSymbol
+                                         RulesVar SrcVar Variable]])
    [datalog.parser.impl :as dpi]
    [datalog.parser.impl.proto :as dpip]
-   ;[datahike.pull-api :as dpa]
+   [datahike.pull-api :as dpa]
    [datalog.parser :refer [parse]]
    [datalog.parser.pull :as dpp]
    ;;
@@ -33,7 +33,7 @@
 ;; ----------------------------------------------------------------------------
 
 
-#_((def ^:const lru-cache-size 100)
+(def ^:const lru-cache-size 100)
 
    (declare -collect -resolve-clause resolve-clause)
 
@@ -198,7 +198,7 @@
         nil
         as))))
 
-   (defn- -missing?
+   #_(defn- -missing?
      [db e a]
      (nil? (get (de/entity db e) a)))
 
@@ -212,9 +212,10 @@
 
    (defmulti -lesser?
      {:arglists '([value & more])}
-     (fn [value & more] (class value)))
+     (fn [value & more] #?(:clj (class value)
+                           :cljs (type value))))
 
-   (defmethod -lesser? java.util.Date [^Date d0 ^Date d1]
+   #_(defmethod -lesser? java.util.Date [^Date d0 ^Date d1]
      #?(:clj  (.before ^Date d0 ^Date d1)
         :cljs (< d0 d1)))
 
@@ -222,9 +223,10 @@
      (apply < value more))
 
    (defmulti -greater? {:arglists '([value & more])}
-     (fn [value & more] (class value)))
+     (fn [value & more] #?(:clj (class value)
+                           :cljs (type value))))
 
-   (defmethod -greater? java.util.Date [^Date d0 ^Date d1]
+   #_(defmethod -greater? java.util.Date [^Date d0 ^Date d1]
      #?(:clj  (.after ^Date d0 ^Date d1)
         :cljs (> d0 d1)))
 
@@ -250,7 +252,7 @@
                    'count      count, 'range range, 'not-empty not-empty, 'empty? empty, 'contains? contains?,
                    'str        str, 'pr-str pr-str, 'print-str print-str, 'println-str println-str, 'prn-str prn-str, 'subs subs,
                    're-find    re-find, 're-matches re-matches, 're-seq re-seq,
-                   '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, 'missing? -missing?, 'ground identity, 'before? -lesser?, 'after? -greater?})
+                   '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, 'missing? #_-missing?, 'ground identity, 'before? -lesser?, 'after? #_-greater?})
 
    (def built-in-aggregates
      (letfn [(sum [coll] (reduce + 0 coll))
@@ -463,7 +465,7 @@
        (assoc a
               :tuples (filterv #(nil? (hash (key-fn-a %))) tuples-a))))
 
-   (defn lookup-pattern-db [db pattern]
+   #_(defn lookup-pattern-db [db pattern]
   ;; TODO optimize with bound attrs min/max values here
      (ha/go-try
       (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
@@ -496,7 +498,7 @@
        clause
        (concat ['$] clause)))
 
-   (defn lookup-pattern [source pattern]
+   #_(defn lookup-pattern [source pattern]
      (ha/go-try
       (cond
         (satisfies? db/ISearch source)
@@ -682,7 +684,7 @@
        [(filter pred guards)
         (remove pred guards)]))
 
-   (defn solve-rule [context clause]
+   #_(defn solve-rule [context clause]
      (ha/go-try
       (let [final-attrs (filter free-var? clause)
             final-attrs-map (zipmap final-attrs (range))
@@ -779,7 +781,7 @@
                    :form  form
                    :vars  missing})))))
 
-   (defn map<
+   #_(defn map<
      "Maps over a sequence s with a go function go-f."
      [go-f s]
      (ha/go-try
@@ -789,7 +791,7 @@
           (recur (conj res (ha/<? (go-f f))) r)
           res))))
 
-   (defn -resolve-clause
+   #_(defn -resolve-clause
      ([context clause]
       (-resolve-clause context clause clause))
      ([context clause orig-clause]
@@ -867,7 +869,7 @@
                                       *lookup-attrs*)]
              (update context :rels collapse-rels relation)))))))
 
-   (defn resolve-clause [context clause]
+   #_(defn resolve-clause [context clause]
      (ha/go-try
       (if (rule? context clause)
         (if (source? (first clause))
@@ -926,7 +928,7 @@
      (-context-resolve [var _]
        (.-value var)))
 
-   (defn -aggregate [find-elements context tuples]
+   #_(defn -aggregate [find-elements context tuples]
      (mapv (fn [element fixed-value i]
              (if (instance? Aggregate element)
                (let [f (-context-resolve (:fn element) context)
@@ -942,7 +944,7 @@
      (->> (map #(when (pred %1) %2) coll (range))
           (remove nil?)))
 
-   (defn aggregate [find-elements context resultset]
+   #_(defn aggregate [find-elements context resultset]
      (let [group-idxs (idxs-of (complement #(instance? Aggregate %)) find-elements)
            group-fn (fn [tuple]
                       (map #(nth tuple %) group-idxs))
@@ -963,7 +965,7 @@
      FindTuple
      (-post-process [_ tuples] (first tuples)))
 
-   (defn- pull [find-elements context resultset]
+   #_(defn- pull [find-elements context resultset]
      (let [resolved (for [find find-elements]
                       (when (instance? Pull find)
                         [(-context-resolve (:source find) context)
@@ -1012,15 +1014,15 @@
          :strs (convert-fn (map str mapping-keys))
          :syms (convert-fn (map symbol mapping-keys)))))
 
-   (defmulti q (fn [query & args] (type query)))
+   #_(defmulti q (fn [query & args] (type query)))
 
-   (defmethod q clojure.lang.LazySeq [query & inputs]
+   #_(defmethod q clojure.lang.LazySeq [query & inputs]
      (q {:query query :args inputs}))
 
-   (defmethod q clojure.lang.PersistentVector [query & inputs]
+   #_(defmethod q clojure.lang.PersistentVector [query & inputs]
      (q {:query query :args inputs}))
 
-   (defmethod q clojure.lang.PersistentArrayMap [query-map & inputs]
+   #_(defmethod q clojure.lang.PersistentArrayMap [query-map & inputs]
      (ha/go-try
       (let [query         (if (contains? query-map :query) (:query query-map) query-map)
             args          (if (contains? query-map :args) (:args query-map) inputs)
@@ -1049,4 +1051,4 @@
           true                                          (-post-process find)
           true                                          (paginate (:offset query-map)
                                                                   (:limit query-map))
-          returnmaps                                    (convert-to-return-maps returnmaps))))))
+          returnmaps                                    (convert-to-return-maps returnmaps)))))
