@@ -78,7 +78,7 @@
         xf (comp
             (take-while (fn [kv]
                            ;; prefix scan
-                          (println kv)
+                          ;(println kv)
                           (let [key #?(:clj (.key ^AMapEntry kv)
                                        :cljs (first kv))
                                 [i j k l] key

@@ -641,7 +641,7 @@
       [IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
        ISeqable (-seq [db] (ha/<?? (-datoms db :eavt [])))
        ICounted (-count [db] (count (ha/<?? (-datoms db :eavt []))))
-       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts))
+       IPrintWithWriter (-pr-writer [db w opts] (do (println "Point: 2") (pr-db db w opts)))
        IEmptyableCollection (-empty [_] (throw (js/Error. "-empty is not supported on SinceDB")))
 
        ILookup (-lookup ([_ _] (throw (js/Error. "-lookup is not supported on SinceDB")))
@@ -881,6 +881,7 @@
 
 #?(:cljs
    (defn pr-db [db w opts]
+     (println "Point: 1")
      (-write w "#datahike/DB {")
      (-write w (str ":max-tx " (-max-tx db) " "))
      (-write w (str ":max-eid " (-max-eid db) " "))
@@ -1362,7 +1363,7 @@
       entities)))
 
 (defn- get-datom-value [^Datom old-datom]
-  (println "old datom from get-datom-value" old-datom)
+  ;(println "old datom from get-datom-value" old-datom)
   (when old-datom (.-v old-datom)))
 
 (defn- transact-add [{{{:keys [keep-history?]} :config :as db-after} :db-after :as report} [_ e a v tx :as ent]]

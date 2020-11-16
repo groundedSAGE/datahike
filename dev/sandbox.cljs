@@ -26,7 +26,7 @@
 
   (println working-tx-dummy)
 
-  (async/go (println (async/<! (db/empty-db))))
+  (async/go (println (ha/<? (db/empty-db))))
 
   (async/go (println (async/<! (db/init-db []))))
 
@@ -40,13 +40,25 @@
     ([db tx-data tx-meta]
      {:pre [(db/db? db)]}
      (db/transact-tx-data (db/map->TxReport
-                                       {:db-before db
-                                        :db-after  db
-                                        :tx-data   []
-                                        :tempids   {}
-                                        :tx-meta   tx-meta}) tx-data)))
+                           {:db-before db
+                            :db-after  db
+                            :tx-data   []
+                            :tempids   {}
+                            :tx-meta   tx-meta}) tx-data)))
+  
+  
+  (ha/go-try
+   (println
+    (db/map->TxReport
+     {:db-before (async/<! (db/empty-db))
+      :db-after  (async/<! (db/empty-db))
+      :tx-data   []
+      :tempids   {}
+      :tx-meta   nil})))
+  
+  (ha/go-try (println "The result of db-after"(:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
 
-  (async/go (def bob-db (:db-after (async/<! (with (async/<! (db/empty-db)) [{:name "bob" :age 5}])))))
+  (ha/go-try (def bob-db (:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
 
   (async/<!! (q/q '[:find ?a :where
                     [?e :name "bob"]
@@ -57,6 +69,6 @@
 
   ;(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}
   ;               :initial-es [#:db{:ident :name, :cardinality :db.cardinality/one, :index true, :unique :db.unique/identity, :valueType :db.type/string} #:db{:ident :sibling, :cardinality :db.cardinality/many, :valueType :db.type/ref} #:db{:ident :age, :cardinality :db.cardinality/one, :valueType :db.type/long}]})
-
+  
   ;;
   )
