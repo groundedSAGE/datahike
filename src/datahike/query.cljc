@@ -473,6 +473,7 @@
      (ha/go-try
       (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
             datoms (ha/<? (db/-search db search-pattern))
+            _ (println "lookup-pattern-db: datoms "datoms)
             attr->prop (->> (map vector pattern ["e" "a" "v" "tx" "added"])
                             (filter (fn [[s _]] (free-var? s)))
                             (into {}))]
@@ -503,6 +504,8 @@
 
    (defn lookup-pattern [source pattern]
      (ha/go-try
+      (println "lookup-pattern source: " source)
+      (println "lookup-pattern satisfies: " (satisfies? db/ISearch source))
       (cond
         (satisfies? db/ISearch source)
         (ha/<? (lookup-pattern-db source pattern))
@@ -808,7 +811,10 @@
 
          [source? '*]                                           ;; source + anything
          (let [[source-sym & rest] clause]
-           (binding [*implicit-source* (get (:sources context) source-sym)]
+           (set! *implicit-source* (get (:sources context) source-sym))    ;; TODO: rethink this
+           (println "-resolve clause - implicit source" *implicit-source*)
+           (ha/<? (-resolve-clause context rest clause))
+           #_(binding [*implicit-source* (get (:sources context) source-sym)]
              (ha/<? (-resolve-clause context rest clause))))
 
          '[or *]                                                ;; (or ...)
@@ -876,13 +882,20 @@
      (ha/go-try
       (if (rule? context clause)
         (if (source? (first clause))
-          (binding [*implicit-source* (get (:sources context) (first clause))]
+          (do
+            (set! *implicit-source* (get (:sources context) (first clause)))    ;; TODO: rethink this
+            (println "resolve-clause - implicit source" *implicit-source*)
             (ha/<? (resolve-clause context (next clause))))
+          #_(binding [*implicit-source* (get (:sources context) (first clause))]
+              (ha/<? (resolve-clause context (next clause))))
           (update context :rels collapse-rels (ha/<? (solve-rule context clause))))
         (ha/<? (-resolve-clause context clause)))))
 
    (defn -q [context clauses]
-     (binding [*implicit-source* (get (:sources context) '$)]
+     (set! *implicit-source* (get (:sources context) '$))    ;; TODO: rethink this
+     (println "-q implicit source" *implicit-source*)
+     (ha/reduce< resolve-clause context clauses)
+     #_(binding [*implicit-source* (get (:sources context) '$)]
        (ha/reduce< resolve-clause context clauses)))
 
    (defn -collect
@@ -895,7 +908,7 @@
       (println "-collect -> symbols" symbols)
       (if-some [rel (first rels)]
         (let [keep-attrs (select-keys (:attrs rel) symbols)]
-          (println "-collect -> rel" rel)
+          ;(println "-collect -> rel" rel)
           (if (empty? keep-attrs)
             (recur acc (next rels) symbols)
             (let [copy-map (to-array (map #(get keep-attrs %) symbols))
@@ -1034,23 +1047,23 @@
    (defmethod q #?(:cljs cljs.core/PersistentArrayMap
                    :clj clojure.lang.PersistentArrayMap) [query-map & inputs]
      (ha/go-try
-      (let [_ (println "test")
+      (let [;_ (println "test")
             query         (if (contains? query-map :query) (:query query-map) query-map)
-            _ (println "query" query)
+            ;_ (println "query" query)
             args          (if (contains? query-map :args) (:args query-map) inputs)
-            _ (println "args" args)
+            ;_ (println "args" args)
             parsed-q      (memoized-parse-query query)
-            _ (println "parsed-q" parsed-q)
+            ;_ (println "parsed-q" parsed-q)
             find          (:qfind parsed-q)
-            _ (println "find" find)
+            ;_ (println "find" find)
             find-elements (dpip/find-elements find)
-            _ (println "find-elements" find-elements)
+            ;_ (println "find-elements" find-elements)
             find-vars     (dpi/find-vars find)
-            _ (println "find-vars" find-vars)
+            ;_ (println "find-vars" find-vars)
             result-arity  (count find-elements)
-            _ (println "result-arity" result-arity)
+            ;_ (println "result-arity" result-arity)
             with          (:qwith parsed-q)
-            _ (println "with" with)
+            ;_ (println "with" with)
             returnmaps    (:qreturnmaps parsed-q)
         ;; TODO utilize parser
             all-vars      (concat find-vars (map :symbol with))
@@ -1059,15 +1072,17 @@
             wheres        (:where query)
             context       (-> (Context. [] {} {})
                               (resolve-ins (:qin parsed-q) args))
-            _ (println "context" context)
+            ;_ (println "context" context)
             resultset     (let [context-result (ha/<? (-q context wheres))
-                                _ (println "context-result" context-result)]
+                                ;_ (println "context-result" context-result)
+                                ]
                             (collect context-result all-vars))
             #_(-> context
                               (-q wheres)
                               (ha/<?)
                               (collect all-vars))
-            _ (println "resultset" resultset)]
+            ;_ (println "resultset" resultset)
+            ]
         (cond->> resultset
           (:with query)                                 (mapv #(vec (subvec % 0 result-arity)))
           (some #(instance? Aggregate %) find-elements) (aggregate find-elements context)

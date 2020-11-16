@@ -52,13 +52,15 @@
 
   (ha/go-try (def bob-db (:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
   
-  (println bob-db)
+  (cljs.pprint/pprint (into {} bob-db))
+  (println (type (:eavt bob-db)))
 
   (async/go (println (async/<! (q/q '[:find ?a :where
                                       [?e :name "bob"]
                                       [?e :age ?a]]
                                     bob-db))))
 
+  
 
 
   ;(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}

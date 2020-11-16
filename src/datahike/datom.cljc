@@ -42,6 +42,11 @@
 
        IPrintWithWriter
        (-pr-writer [d writer opts]
+                   (println "IPrintWithWriter -e d"(.-e d)) 
+                   (println "IPrintWithWriter -a d"(.-a d)) 
+                   (println "IPrintWithWriter -v d"(.-v d)) 
+                   (println "IPrintWithWriter tx"(datom-tx d)) 
+                   (println "IPrintWithWriter added"(datom-added d))
                    (pr-sequential-writer writer pr-writer
                                          "#datahike/Datom [" " " "]"
                                          opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
