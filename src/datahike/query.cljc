@@ -1,5 +1,6 @@
 (ns datahike.query
   (:require
+   [clojure.core.async :as async]
    [#?(:cljs cljs.reader :clj clojure.edn) :as edn]
    #?(:cljs [hitchhiker.tree.utils.cljs.async :as ha])
    #?(:clj [hitchhiker.tree.utils.clojure.async :as ha])
@@ -13,7 +14,7 @@
    ;[datahike.impl.entity :as de]
    #?(:cljs [datalog.parser.type :refer [BindColl BindIgnore BindScalar BindTuple Constant
                                          FindColl FindRel FindScalar FindTuple PlainSymbol
-                                         RulesVar SrcVar Variable]])
+                                         RulesVar SrcVar Variable Aggregate Pull]])
    [datalog.parser.impl :as dpi]
    [datalog.parser.impl.proto :as dpip]
    [datahike.pull-api :as dpa]
@@ -465,7 +466,7 @@
        (assoc a
               :tuples (filterv #(nil? (hash (key-fn-a %))) tuples-a))))
 
-   #_(defn lookup-pattern-db [db pattern]
+   (defn lookup-pattern-db [db pattern]
   ;; TODO optimize with bound attrs min/max values here
      (ha/go-try
       (let [search-pattern (mapv #(if (symbol? %) nil %) pattern)
@@ -498,7 +499,7 @@
        clause
        (concat ['$] clause)))
 
-   #_(defn lookup-pattern [source pattern]
+   (defn lookup-pattern [source pattern]
      (ha/go-try
       (cond
         (satisfies? db/ISearch source)
@@ -684,7 +685,7 @@
        [(filter pred guards)
         (remove pred guards)]))
 
-   #_(defn solve-rule [context clause]
+   (defn solve-rule [context clause]
      (ha/go-try
       (let [final-attrs (filter free-var? clause)
             final-attrs-map (zipmap final-attrs (range))
@@ -781,7 +782,7 @@
                    :form  form
                    :vars  missing})))))
 
-   #_(defn map<
+   (defn map<
      "Maps over a sequence s with a go function go-f."
      [go-f s]
      (ha/go-try
@@ -791,7 +792,7 @@
           (recur (conj res (ha/<? (go-f f))) r)
           res))))
 
-   #_(defn -resolve-clause
+   (defn -resolve-clause
      ([context clause]
       (-resolve-clause context clause clause))
      ([context clause orig-clause]
@@ -869,7 +870,7 @@
                                       *lookup-attrs*)]
              (update context :rels collapse-rels relation)))))))
 
-   #_(defn resolve-clause [context clause]
+   (defn resolve-clause [context clause]
      (ha/go-try
       (if (rule? context clause)
         (if (source? (first clause))
@@ -928,7 +929,7 @@
      (-context-resolve [var _]
        (.-value var)))
 
-   #_(defn -aggregate [find-elements context tuples]
+   (defn -aggregate [find-elements context tuples]
      (mapv (fn [element fixed-value i]
              (if (instance? Aggregate element)
                (let [f (-context-resolve (:fn element) context)
@@ -944,7 +945,7 @@
      (->> (map #(when (pred %1) %2) coll (range))
           (remove nil?)))
 
-   #_(defn aggregate [find-elements context resultset]
+   (defn aggregate [find-elements context resultset]
      (let [group-idxs (idxs-of (complement #(instance? Aggregate %)) find-elements)
            group-fn (fn [tuple]
                       (map #(nth tuple %) group-idxs))
@@ -965,7 +966,7 @@
      FindTuple
      (-post-process [_ tuples] (first tuples)))
 
-   #_(defn- pull [find-elements context resultset]
+   (defn- pull [find-elements context resultset]
      (let [resolved (for [find find-elements]
                       (when (instance? Pull find)
                         [(-context-resolve (:source find) context)
@@ -1014,15 +1015,18 @@
          :strs (convert-fn (map str mapping-keys))
          :syms (convert-fn (map symbol mapping-keys)))))
 
-   #_(defmulti q (fn [query & args] (type query)))
+   (defmulti q (fn [query & args] (type query)))
 
-   #_(defmethod q clojure.lang.LazySeq [query & inputs]
+   (defmethod q #?(:cljs cljs.core/LazySeq
+                     :clj clojure.lang.LazySeq)  [query & inputs]
      (q {:query query :args inputs}))
 
-   #_(defmethod q clojure.lang.PersistentVector [query & inputs]
+   (defmethod q #?(:cljs cljs.core/PersistentVector
+                   :clj clojure.lang.PersistentVector) [query & inputs]
      (q {:query query :args inputs}))
 
-   #_(defmethod q clojure.lang.PersistentArrayMap [query-map & inputs]
+   (defmethod q #?(:cljs cljs.core/PersistentArrayMap
+                   :clj clojure.lang.PersistentArrayMap) [query-map & inputs]
      (ha/go-try
       (let [query         (if (contains? query-map :query) (:query query-map) query-map)
             args          (if (contains? query-map :args) (:args query-map) inputs)
