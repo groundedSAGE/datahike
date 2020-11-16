@@ -216,7 +216,8 @@
      (fn [value & more] #?(:clj (class value)
                            :cljs (type value))))
 
-   #_(defmethod -lesser? java.util.Date [^Date d0 ^Date d1]
+   #_(defmethod -lesser? #?(:clj (java.util.Date.)
+                            :cljs (js/Date.)) [^Date d0 ^Date d1]
      #?(:clj  (.before ^Date d0 ^Date d1)
         :cljs (< d0 d1)))
 
@@ -227,7 +228,8 @@
      (fn [value & more] #?(:clj (class value)
                            :cljs (type value))))
 
-   #_(defmethod -greater? java.util.Date [^Date d0 ^Date d1]
+   #_(defmethod -greater? #?(:clj (java.util.Date.)
+                             :cljs (js/Date.)) [^Date d0 ^Date d1]
      #?(:clj  (.after ^Date d0 ^Date d1)
         :cljs (> d0 d1)))
 
