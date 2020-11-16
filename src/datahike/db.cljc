@@ -209,7 +209,7 @@
        IReversible (-rseq [db] (-rseq (.-eavt db)))
        ICounted (-count [db] (count (.-eavt db)))
        IEmptyableCollection (-empty [db] (empty-db (.-schema db)))
-       IPrintWithWriter (-pr-writer [db w opts] (pr-db db w opts)) 
+       IPrintWithWriter (-pr-writer [db w opts] (do (println "Point printer writer") (pr-db db w opts))) 
        IEditableCollection (-as-transient [db] (db-transient db))
        ITransientCollection (-conj! [db key] (throw (ex-info "datahike.DB/conj! is not supported" {})))
        (-persistent! [db] (db-persistent! db))]
@@ -881,7 +881,7 @@
 
 #?(:cljs
    (defn pr-db [db w opts]
-     (println "Point: 1")
+     (println "Point: 2")
      (-write w "#datahike/DB {")
      (-write w (str ":max-tx " (-max-tx db) " "))
      (-write w (str ":max-eid " (-max-eid db) " "))

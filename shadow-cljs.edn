@@ -5,7 +5,7 @@
   {:target :browser
    :output-dir "public/js"
    :asset-path "/js"
-   :modules {:main {:entries [datahike.db]}}}
+   :modules {:main {:entries [datahike.query]}}}
 
 
   :browser-test

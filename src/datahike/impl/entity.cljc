@@ -115,7 +115,9 @@
 
        IPrintWithWriter
        (-pr-writer [_ writer opts]
-                   (-pr-writer (assoc @cache :db/id eid) writer opts))]
+                   (do
+                     (println "Entity" writer opts)
+                     (-pr-writer (assoc @cache :db/id eid) writer opts)))]
 
       :clj
       [Object

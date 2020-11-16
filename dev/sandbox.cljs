@@ -1,6 +1,6 @@
 (ns sandbox
   (:require ;[datahike.api :as d]
-            ;[datahike.query :as q]
+            [datahike.query :as q]
             [datahike.db :as db]
             [clojure.core.async :as async]
             [hitchhiker.tree.utils.cljs.async :as ha]
@@ -20,7 +20,7 @@
   (let [db (dd/init-db [(datom 1 :foo "bar") (datom 2 :qux :quun)])]
     (dd/-datoms db :eavt nil))
 
-  (println "test")
+  (println "testing")
 
   (macroexpand-1 '(ha/<?? (ha/go-try (+ 1 1))))
 
@@ -39,6 +39,7 @@
     ([db tx-data] (with db tx-data nil))
     ([db tx-data tx-meta]
      {:pre [(db/db? db)]}
+     (println "Point 1: " db)
      (db/transact-tx-data (db/map->TxReport
                            {:db-before db
                             :db-after  db
@@ -47,23 +48,16 @@
                             :tx-meta   tx-meta}) tx-data)))
   
   
-  (ha/go-try
-   (println
-    (db/map->TxReport
-     {:db-before (async/<! (db/empty-db))
-      :db-after  (async/<! (db/empty-db))
-      :tx-data   []
-      :tempids   {}
-      :tx-meta   nil})))
-  
-  (ha/go-try (println "The result of db-after"(:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
+
 
   (ha/go-try (def bob-db (:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
+  
+  (println bob-db)
 
-  (async/<!! (q/q '[:find ?a :where
-                    [?e :name "bob"]
-                    [?e :age ?a]]
-                  bob-db))
+  (async/go (println (async/<! (q/q '[:find ?a :where
+                                      [?e :name "bob"]
+                                      [?e :age ?a]]
+                                    bob-db))))
 
 
 

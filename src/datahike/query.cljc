@@ -216,10 +216,10 @@
      (fn [value & more] #?(:clj (class value)
                            :cljs (type value))))
 
-   #_(defmethod -lesser? #?(:clj (java.util.Date.)
+   (defmethod -lesser? #?(:clj (java.util.Date.)
                             :cljs (js/Date.)) [^Date d0 ^Date d1]
      #?(:clj  (.before ^Date d0 ^Date d1)
-        :cljs (< d0 d1)))
+        :cljs (< (.getTime d0) (.getTime d1))))  ;; TODO: check if this needs to be date
 
    (defmethod -lesser? :default [value & more]
      (apply < value more))
@@ -228,10 +228,10 @@
      (fn [value & more] #?(:clj (class value)
                            :cljs (type value))))
 
-   #_(defmethod -greater? #?(:clj (java.util.Date.)
+   (defmethod -greater? #?(:clj (java.util.Date.)
                              :cljs (js/Date.)) [^Date d0 ^Date d1]
      #?(:clj  (.after ^Date d0 ^Date d1)
-        :cljs (> d0 d1)))
+        :cljs (> (.getTime d0) (.getTime d1))))
 
    (defmethod -greater? :default [value & more]
      (apply > value more))
@@ -244,18 +244,18 @@
      (or (apply = value more)
          (apply -greater? value more)))
 
-   (def built-ins {'=          =, '== ==, 'not= not=, '!= not=, '< -lesser?, '> -greater?, '<= -lesser-equal?, '>= -greater-equal?, '+ +, '- -,
-                   '*          *, '/ /, 'quot quot, 'rem rem, 'mod mod, 'inc inc, 'dec dec, 'max max, 'min min,
-                   'zero?      zero?, 'pos? pos?, 'neg? neg?, 'even? even?, 'odd? odd?, 'compare compare,
-                   'rand       rand, 'rand-int rand-int,
-                   'true?      true?, 'false? false?, 'nil? nil?, 'some? some?, 'not not, 'and and-fn, 'or or-fn,
-                   'complement complement, 'identical? identical?,
-                   'identity   identity, 'meta meta, 'name name, 'namespace namespace, 'type type,
-                   'vector     vector, 'list list, 'set set, 'hash-map hash-map, 'array-map array-map,
-                   'count      count, 'range range, 'not-empty not-empty, 'empty? empty, 'contains? contains?,
-                   'str        str, 'pr-str pr-str, 'print-str print-str, 'println-str println-str, 'prn-str prn-str, 'subs subs,
-                   're-find    re-find, 're-matches re-matches, 're-seq re-seq,
-                   '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, 'missing? #_-missing?, 'ground identity, 'before? -lesser?, 'after? #_-greater?})
+(def built-ins {'=          =, '== ==, 'not= not=, '!= not=, '< -lesser?, '> -greater?, '<= -lesser-equal?, '>= -greater-equal?, '+ +, '- -
+                '*          *, '/ /, 'quot quot, 'rem rem, 'mod mod, 'inc inc, 'dec dec, 'max max, 'min min
+                'zero?      zero?, 'pos? pos?, 'neg? neg?, 'even? even?, 'odd? odd?, 'compare compare
+                'rand       rand, 'rand-int rand-int
+                'true?      true?, 'false? false?, 'nil? nil?, 'some? some?, 'not not, 'and and-fn, 'or or-fn
+                'complement complement, 'identical? identical?
+                'identity   identity, 'meta meta, 'name name, 'namespace namespace, 'type type
+                'vector     vector, 'list list, 'set set, 'hash-map hash-map, 'array-map array-map
+                'count      count, 'range range, 'not-empty not-empty, 'empty? empty, 'contains? contains?
+                'str        str, 'pr-str pr-str, 'print-str print-str, 'println-str println-str, 'prn-str prn-str, 'subs subs
+                're-find    re-find, 're-matches re-matches, 're-seq re-seq
+                '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, #_'missing? #_-missing?, 'ground identity, 'before? -lesser?, 'after? -greater?})
 
    (def built-in-aggregates
      (letfn [(sum [coll] (reduce + 0 coll))
@@ -890,6 +890,9 @@
       (let [rels (:rels context)]
         (-collect [(da/make-array (count symbols))] rels symbols)))
      ([acc rels symbols]
+      (println "-collect -> acc" acc)
+      (println "-collect -> rels" rels)
+      (println "-collect -> symbols" symbols)
       (if-some [rel (first rels)]
         (let [keep-attrs (select-keys (:attrs rel) symbols)]
           (if (empty? keep-attrs)
@@ -1025,19 +1028,28 @@
 
    (defmethod q #?(:cljs cljs.core/PersistentVector
                    :clj clojure.lang.PersistentVector) [query & inputs]
-     (q {:query query :args inputs}))
+     (do (println "query method") (q {:query query :args inputs})))
 
    (defmethod q #?(:cljs cljs.core/PersistentArrayMap
                    :clj clojure.lang.PersistentArrayMap) [query-map & inputs]
      (ha/go-try
-      (let [query         (if (contains? query-map :query) (:query query-map) query-map)
+      (let [_ (println "test")
+            query         (if (contains? query-map :query) (:query query-map) query-map)
+            _ (println "query" query)
             args          (if (contains? query-map :args) (:args query-map) inputs)
+            _ (println "args" args)
             parsed-q      (memoized-parse-query query)
+            _ (println "parsed-q" parsed-q)
             find          (:qfind parsed-q)
+            _ (println "find" find)
             find-elements (dpip/find-elements find)
+            _ (println "find-elements" find-elements)
             find-vars     (dpi/find-vars find)
+            _ (println "find-vars" find-vars)
             result-arity  (count find-elements)
+            _ (println "result-arity" result-arity)
             with          (:qwith parsed-q)
+            _ (println "with" with)
             returnmaps    (:qreturnmaps parsed-q)
         ;; TODO utilize parser
             all-vars      (concat find-vars (map :symbol with))
@@ -1046,10 +1058,15 @@
             wheres        (:where query)
             context       (-> (Context. [] {} {})
                               (resolve-ins (:qin parsed-q) args))
-            resultset     (-> context
+            _ (println "context" context)
+            resultset     (let [context-result (ha/<? (-q context wheres))
+                                _ (println "context-result" context-result)]
+                            (collect context-result all-vars))
+            #_(-> context
                               (-q wheres)
                               (ha/<?)
-                              (collect all-vars))]
+                              (collect all-vars))
+            _ (println "resultset" resultset)]
         (cond->> resultset
           (:with query)                                 (mapv #(vec (subvec % 0 result-arity)))
           (some #(instance? Aggregate %) find-elements) (aggregate find-elements context)
