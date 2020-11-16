@@ -895,6 +895,7 @@
       (println "-collect -> symbols" symbols)
       (if-some [rel (first rels)]
         (let [keep-attrs (select-keys (:attrs rel) symbols)]
+          (println "-collect -> rel" rel)
           (if (empty? keep-attrs)
             (recur acc (next rels) symbols)
             (let [copy-map (to-array (map #(get keep-attrs %) symbols))
