@@ -63,6 +63,16 @@
         `(throw-if-exception (async/<!! ~ch))
         ch))))
 
+(defn map<
+  "Maps over a sequence s with a go function go-f."
+  [go-f s]
+  (go-try
+   (loop [res []
+          [f & r] s]
+     (if (seq s)
+       (recur (conj res (<? (go-f f))) r)
+       res))))
+
 (defn reduce<
   "Reduces over a sequence s with a go function go-f given the initial value
   init."

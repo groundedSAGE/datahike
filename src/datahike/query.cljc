@@ -182,7 +182,7 @@
      [db e a else-val]
      (when (nil? else-val)
        (raise "get-else: nil default value is not supported" {:error :query/where}))
-     (ha/<??
+     (ha/<??   ;; TODO: track call sites to remove the syncronous take
       (ha/go-try
        (if-some [datom (first (ha/<? (db/-search db [e a])))]
          (:v datom)
@@ -190,7 +190,7 @@
 
    (defn- -get-some
      [db e & as]
-     (ha/<??
+     (ha/<??    ;; TODO: track call sites to remove the syncronous take
       (ha/go-try
        (reduce
         (fn [_ a]
@@ -592,8 +592,7 @@
                      (let [^Method method (find-method (class this) method-name (mapv class args))]
                        (Reflector/prepRet (.getReturnType method) (.invoke method this (into-array Object args))))))))))
 
-   (defn filter-by-pred [context clause]
-  ;; TODO: built-ins -get-some and -get-else return a channel. 
+   (defn filter-by-pred [context clause] 
      (let [[[f & args]] clause
            pred (or (get built-ins f)
                     (context-resolve-val context f)
@@ -610,7 +609,6 @@
        (update context :rels conj new-rel)))
 
    (defn bind-by-fn [context clause]
-  ;; TODO: built-ins -get-some and -get-else return a channel. 
      (let [[[f & args] out] clause
            binding (dpi/parse-binding out)
            fun (or (get built-ins f)
@@ -784,15 +782,6 @@
                    :form  form
                    :vars  missing})))))
 
-   (defn map<
-     "Maps over a sequence s with a go function go-f."
-     [go-f s]
-     (ha/go-try
-      (loop [res []
-             [f & r] s]
-        (if (seq s) ; TODO: fix reduce in ha namespace
-          (recur (conj res (ha/<? (go-f f))) r)
-          res))))
 
    (defn -resolve-clause
      ([context clause]
@@ -815,7 +804,7 @@
 
          '[or *]                                                ;; (or ...)
          (let [[_ & branches] clause
-               contexts (ha/<? (map< #(resolve-clause context %) branches))
+               contexts (ha/<? (ha/map< #(resolve-clause context %) branches))
                rels (map #(reduce hash-join (:rels %)) contexts)]
            (assoc (first contexts) :rels [(reduce sum-rel rels)]))
 
@@ -829,7 +818,7 @@
          (let [[_ vars & branches] clause
                vars (set vars)
                join-context (limit-context context vars)
-               contexts (ha/<? (map< #(ha/go-try (-> join-context (resolve-clause %) (ha/<?) (limit-context vars))) branches))
+               contexts (ha/<? (ha/map< #(ha/go-try (-> join-context (resolve-clause %) (ha/<?) (limit-context vars))) branches))
                rels (map #(reduce hash-join (:rels %)) contexts)
                sum-rel (reduce sum-rel rels)]
            (update context :rels collapse-rels sum-rel))

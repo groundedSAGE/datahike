@@ -392,7 +392,7 @@
          from (ha/<? (components->pattern db index-type cs e0 tx0))
          to (ha/<? (components->pattern db index-type cs emax txmax))]
      (concat (ha/<? (-slice index from to index-type))
-             (ha/<? (-slice temporal-index from to index-type)))))) ; TODO: check that this works as a replacement for concat
+             (ha/<? (-slice temporal-index from to index-type))))))
 
 (defn temporal-seek-datoms [^DB db index-type cs]
   (ha/go-try
@@ -1360,7 +1360,6 @@
       entities)))
 
 (defn- get-datom-value [^Datom old-datom]
-  ;(println "old datom from get-datom-value" old-datom)
   (when old-datom (.-v old-datom)))
 
 (defn- transact-add [{{{:keys [keep-history?]} :config :as db-after} :db-after :as report} [_ e a v tx :as ent]]
