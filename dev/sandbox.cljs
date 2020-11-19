@@ -39,7 +39,6 @@
     ([db tx-data] (with db tx-data nil))
     ([db tx-data tx-meta]
      {:pre [(db/db? db)]}
-     (println "Point 1: " db)
      (db/transact-tx-data (db/map->TxReport
                            {:db-before db
                             :db-after  db

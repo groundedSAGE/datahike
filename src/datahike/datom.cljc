@@ -42,11 +42,6 @@
 
        IPrintWithWriter
        (-pr-writer [d writer opts]
-                   (println "IPrintWithWriter -e d"(.-e d)) 
-                   (println "IPrintWithWriter -a d"(.-a d)) 
-                   (println "IPrintWithWriter -v d"(.-v d)) 
-                   (println "IPrintWithWriter tx"(datom-tx d)) 
-                   (println "IPrintWithWriter added"(datom-added d))
                    (pr-sequential-writer writer pr-writer
                                          "#datahike/Datom [" " " "]"
                                          opts [(.-e d) (.-a d) (.-v d) (datom-tx d) (datom-added d)]))]
@@ -147,7 +142,7 @@
     :tx (datom (.-e d) (.-a d) (.-v d) v (datom-added d))
     :added (datom (.-e d) (.-a d) (.-v d) (datom-tx d) v)
     #?(:clj (throw (IllegalArgumentException. (str "invalid key for #datahike/Datom: " k)))
-       :cljs (throw (js/Error. "TODO: error")))))
+       :cljs (throw (js/Error. (str "invalid key for #datahike/Datom: " k))))))
 
 ;; printing and reading
 ;; #datomic/DB {:schema <map>, :datoms <vector of [e a v tx]>}
