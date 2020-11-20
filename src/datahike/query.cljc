@@ -11,7 +11,7 @@
    [datahike.tools #?(:cljs :refer-macros :clj :refer) [raise]]
    [me.tonsky.persistent-sorted-set.arrays :as da]
    [datahike.lru]
-   ;[datahike.impl.entity :as de]
+   [datahike.impl.entity :as de]
    #?(:cljs [datalog.parser.type :refer [BindColl BindIgnore BindScalar BindTuple Constant
                                          FindColl FindRel FindScalar FindTuple PlainSymbol
                                          RulesVar SrcVar Variable Aggregate Pull]])
@@ -199,7 +199,7 @@
         nil
         as))))
 
-   #_(defn- -missing?
+   (defn- -missing?
      [db e a]
      (nil? (get (de/entity db e) a)))
 
@@ -255,7 +255,7 @@
                 'count      count, 'range range, 'not-empty not-empty, 'empty? empty, 'contains? contains?
                 'str        str, 'pr-str pr-str, 'print-str print-str, 'println-str println-str, 'prn-str prn-str, 'subs subs
                 're-find    re-find, 're-matches re-matches, 're-seq re-seq
-                '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, #_'missing? #_-missing?, 'ground identity, 'before? -lesser?, 'after? -greater?})
+                '-differ?   -differ?, 'get-else -get-else, 'get-some -get-some, 'missing? -missing?, 'ground identity, 'before? -lesser?, 'after? -greater?})
 
    (def built-in-aggregates
      (letfn [(sum [coll] (reduce + 0 coll))
