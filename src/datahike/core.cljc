@@ -644,7 +644,7 @@
           (-deref-with-timeout [_ _ _] res)
           IPending
           (-realized? [_] true))
-        :clj
+        :clj 
         (reify
           clojure.lang.IDeref
           (deref [_] res)
@@ -656,13 +656,22 @@
 (defn load-entities [conn entities]
   {:pre [(conn? conn)]}
   (let [res (-load-entities! conn entities)]
-    (reify
-      clojure.lang.IDeref
-      (deref [_] res)
-      clojure.lang.IBlockingDeref
-      (deref [_ _ _] res)
-      clojure.lang.IPending
-      (isRealized [_] true))))
+    #?(:cljs
+       (reify
+         IDeref
+         (-deref [_] res)
+         IDerefWithTimeout
+         (-deref-with-timeout [_ _ _] res)
+         IPending
+         (-realized? [_] true))
+       :clj
+       (reify
+         clojure.lang.IDeref
+         (deref [_] res)
+         clojure.lang.IBlockingDeref
+         (deref [_ _ _] res)
+         clojure.lang.IPending
+         (isRealized [_] true)))))
 
 ;; ersatz future without proper blocking
 #?(:cljs
