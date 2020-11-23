@@ -52,8 +52,7 @@
 
   (ha/go-try (def bob-db (:db-after (ha/<? (with (ha/<? (db/empty-db)) [{:name "bob" :age 5}])))))
 
-  (cljs.pprint/pprint (into {} bob-db))
-  (println (type (:eavt bob-db)))
+
 
   (async/go (println (async/<! (q/q '[:find ?a :where
                                       [?e :name "bob"]
