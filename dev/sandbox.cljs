@@ -3,7 +3,8 @@
    [datahike.query :as q]
    [datahike.db :as db]
    [clojure.core.async :as async]
-   [hitchhiker.tree.utils.cljs.async :as ha]))
+   [hitchhiker.tree.utils.cljs.async :as ha]
+   [datahike.impl.entity :refer [entity]]))
 
 (async/go
   (def working-tx-dummy {:initial-report {:db-before (async/<! (db/empty-db)), :db-after (async/<! (db/empty-db)), :tx-data [], :tempids {}, :tx-meta nil}

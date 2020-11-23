@@ -1667,75 +1667,53 @@
                 (recur (allocate-eid report v (next-eid db)) es))
 
               (= op :db/add)
-              (do
-                  ;(println "Loop Point: " 13)
-                  ;(println "Loop Point: " report)
-                  ;(println "Loop Point: " entity)
-                  ;(println "Loop Point: " entities)
-                (let [;_ (println "Loop Point:" "before new report")
-                      new-report (ha/<? (transact-add report entity))
-                        ;_ (println "Loop Point:" "after new report")
-                      ]
-                  (recur new-report entities)))
+              (let [new-report (ha/<? (transact-add report entity))]
+                (recur new-report entities))
 
               (= op :db/retract)
-              (do
-                  ;(println "Loop Point: " 14)
-                (if-some [e (ha/<? (entid db e))]
-                  (let [v (if (ref? db a) (ha/<? (entid-strict db v)) v)]
-                    (validate-attr a entity db)
-                    (validate-val v entity db)
-                    (if-some [old-datom (first (ha/<? (-search db [e a v])))]
-                      (recur (ha/<? (transact-retract-datom report old-datom)) entities)
-                      (recur report
-                             entities)))
-                  (recur report entities)))
+              (if-some [e (ha/<? (entid db e))]
+                (let [v (if (ref? db a) (ha/<? (entid-strict db v)) v)]
+                  (validate-attr a entity db)
+                  (validate-val v entity db)
+                  (if-some [old-datom (first (ha/<? (-search db [e a v])))]
+                    (recur (ha/<? (transact-retract-datom report old-datom)) entities)
+                    (recur report
+                           entities)))
+                (recur report entities))
 
               (= op :db.fn/retractAttribute)
-              (do
-                  ;(println "Loop Point: " 15)
-                (if-let [e (ha/<? (entid db e))]
-                  (let [_ (validate-attr a entity db)
-                        datoms (vec (ha/<? (-search db [e a])))]
-                    (recur (ha/<? (ha/reduce< transact-retract-datom report datoms))
-                           (concat (retract-components db datoms) entities)))
-                  (recur report entities)))
+              (if-let [e (ha/<? (entid db e))]
+                (let [_ (validate-attr a entity db)
+                      datoms (vec (ha/<? (-search db [e a])))]
+                  (recur (ha/<? (ha/reduce< transact-retract-datom report datoms))
+                         (concat (retract-components db datoms) entities)))
+                (recur report entities))
 
               (or (= op :db.fn/retractEntity)
                   (= op :db/retractEntity))
-              (do
-                  ;(println "Loop Point: " 16)
-                (if-let [e (ha/<? (entid db e))]
-                  (let [e-datoms (vec (ha/<? (-search db [e])))
-                        v-datoms (vec (mapcat (fn [a] (ha/<? (-search db [nil a e]))) (-attrs-by db :db.type/ref)))
-                        retracted-comps (retract-components db e-datoms)]
-                    (recur (ha/<? (ha/reduce< transact-retract-datom report (concat e-datoms v-datoms)))
-                           (concat retracted-comps entities)))
-                  (recur report entities)))
+              (if-let [e (ha/<? (entid db e))]
+                (let [e-datoms (vec (ha/<? (-search db [e])))
+                      v-datoms (vec (mapcat (fn [a] (ha/<? (-search db [nil a e]))) (-attrs-by db :db.type/ref)))
+                      retracted-comps (retract-components db e-datoms)]
+                  (recur (ha/<? (ha/reduce< transact-retract-datom report (concat e-datoms v-datoms)))
+                         (concat retracted-comps entities)))
+                (recur report entities))
 
               (= op :db/purge)
-              (do
-                (println "Loop Point: " 17)
-                (when-let [[report es] (purge db report entities op entity [e a v])]
-                  (recur report es)))
+              (when-let [[report es] (purge db report entities op entity [e a v])]
+                (recur report es))
 
               (= op :db.purge/attribute)
-              (do
-                (println "Loop Point: " 18)
-                (when-let [[report es] (purge-entity db report entities op entity [e a v])]
-                  (recur report es)))
+              (when-let [[report es] (purge-entity db report entities op entity [e a v])]
+                (recur report es))
 
               (= op :db.purge/entity)
-              (do
-                (println "Loop Point: " 19)
-                (when-let [[report es] (purge-entity db report entities op entity [e a v])]
-                  (recur report es)))
+              (when-let [[report es] (purge-entity db report entities op entity [e a v])]
+                (recur report es))
 
               (= op :db.history.purge/before)
-              (do
-                (println "Loop Point: " 19)
-                (when-let [[report es] (purge-before db report entities op entity [e a v])]
-                  (recur report es)))
+              (when-let [[report es] (purge-before db report entities op entity [e a v])]
+                (recur report es))
 
 
             ;; assert required attributes

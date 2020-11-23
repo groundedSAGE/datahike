@@ -192,7 +192,7 @@
      [db e & as]
      (ha/<??    ;; TODO: track call sites to remove the syncronous take
       (ha/go-try
-       (reduce
+       (reduce ;; Need to rewrite to use reduce<
         (fn [_ a]
           (when-some [datom (first (ha/<? (db/-search db [e a])))]
             (reduced [(:a datom) (:v datom)])))
@@ -217,9 +217,9 @@
                            :cljs (type value))))
 
    (defmethod -lesser? #?(:clj (java.util.Date.)
-                            :cljs (js/Date.)) [^Date d0 ^Date d1]
+                          :cljs (js/Date.)) [^Date d0 ^Date d1]
      #?(:clj  (.before ^Date d0 ^Date d1)
-        :cljs (< (.getTime d0) (.getTime d1))))  ;; TODO: check if this needs to be date
+        :cljs (< (.getTime d0) (.getTime d1))))  ;; TODO: check if this invoked and printed
 
    (defmethod -lesser? :default [value & more]
      (apply < value more))
