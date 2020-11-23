@@ -630,7 +630,8 @@
                          (prod-rel production (empty-rel binding))
                          (reduce sum-rel rels)))
                      (prod-rel (assoc production :tuples []) (empty-rel binding)))]
-       (update context :rels collapse-rels new-rel)))
+       (binding *implicit-source*
+         (update context :rels collapse-rels new-rel))))
 
 ;;; RULES
 
@@ -796,16 +797,15 @@
          (bind-by-fn context clause)
 
          [source? '*]                                           ;; source + anything
-         (let [[source-sym & rest] clause]
-           (set! *implicit-source* (get (:sources context) source-sym))    ;; TODO: rethink this
-           (ha/<? (-resolve-clause context rest clause))
-           #_(binding [*implicit-source* (get (:sources context) source-sym)]
-             (ha/<? (-resolve-clause context rest clause))))
+         (let [[source-sym & rest] clause
+               enriched-context (assoc context :implicit-source (get (:sources context) source-sym))]
+           (ha/<? (-resolve-clause enriched-context rest clause)))
 
          '[or *]                                                ;; (or ...)
          (let [[_ & branches] clause
                contexts (ha/<? (ha/map< #(resolve-clause context %) branches))
-               rels (map #(reduce hash-join (:rels %)) contexts)]
+               rels (binding [*implicit-source* (:implicit-source context)] 
+                      (map #(reduce hash-join (:rels %)) contexts))]
            (assoc (first contexts) :rels [(reduce sum-rel rels)]))
 
          '[or-join [[*] *] *]                                   ;; (or-join [[req-vars] vars] ...)
@@ -819,9 +819,11 @@
                vars (set vars)
                join-context (limit-context context vars)
                contexts (ha/<? (ha/map< #(ha/go-try (-> join-context (resolve-clause %) (ha/<?) (limit-context vars))) branches))
-               rels (map #(reduce hash-join (:rels %)) contexts)
+               rels (binding [*implicit-source* (:implicit-source context)] 
+                      (map #(reduce hash-join (:rels %)) contexts))
                sum-rel (reduce sum-rel rels)]
-           (update context :rels collapse-rels sum-rel))
+           (binding [*implicit-source* (:implicit-source context)]
+             (update context :rels collapse-rels sum-rel)))
 
          '[and *]                                               ;; (and ...)
          (let [[_ & clauses] clause]
@@ -835,51 +837,52 @@
                    (raise "Insufficient bindings: none of " negation-vars " is bound in " orig-clause
                           {:error :query/where
                            :form  orig-clause}))
-               context' (assoc context :rels [(reduce hash-join (:rels context))])
+               context' (binding [*implicit-source* (:implicit-source context)]
+                          (assoc context :rels [(reduce hash-join (:rels context))]))
                negation-context (ha/<? (ha/reduce< resolve-clause context' clauses))
-               negation (subtract-rel
-                         (single (:rels context'))
-                         (reduce hash-join (:rels negation-context)))]
+               negation (binding [*implicit-source* (:implicit-source context)]
+                          (subtract-rel
+                           (single (:rels context'))
+                           (reduce hash-join (:rels negation-context))))]
            (assoc context' :rels [negation]))
 
          '[not-join [*] *]                                      ;; (not-join [vars] ...)
          (let [[_ vars & clauses] clause
                _ (check-bound context vars orig-clause)
-               context' (assoc context :rels [(reduce hash-join (:rels context))])
+               context' (binding [*implicit-source* (:implicit-source context)] 
+                          (assoc context :rels [(reduce hash-join (:rels context))]))
                join-context (limit-context context' vars)
                negation-context (-> (ha/<? (ha/reduce< resolve-clause join-context clauses))
                                     (limit-context vars))
-               negation (subtract-rel
-                         (single (:rels context'))
-                         (reduce hash-join (:rels negation-context)))]
+               negation (binding [*implicit-source* (:implicit-source context)]
+                          (subtract-rel
+                           (single (:rels context'))
+                           (reduce hash-join (:rels negation-context))))]
            (assoc context' :rels [negation]))
 
          '[*]                                                   ;; pattern
-         (let [source *implicit-source*
+         (let [source (:implicit-source context)
                pattern (resolve-pattern-lookup-refs source clause)
                relation (ha/<? (lookup-pattern source pattern))]
            (binding [*lookup-attrs* (if (satisfies? db/IDB source)
                                       (dynamic-lookup-attrs source pattern)
-                                      *lookup-attrs*)]
+                                      *lookup-attrs*)
+                     *implicit-source* (:implicit-source context)]
              (update context :rels collapse-rels relation)))))))
 
    (defn resolve-clause [context clause]
      (ha/go-try
       (if (rule? context clause)
         (if (source? (first clause))
-          (do
-            (set! *implicit-source* (get (:sources context) (first clause)))    ;; TODO: rethink this
-            (ha/<? (resolve-clause context (next clause))))
-          #_(binding [*implicit-source* (get (:sources context) (first clause))]
-              (ha/<? (resolve-clause context (next clause))))
-          (update context :rels collapse-rels (ha/<? (solve-rule context clause))))
+          (let [enriched-context (assoc context :implicit-source (get (:sources context) (first clause)))]
+            (ha/<? (resolve-clause enriched-context (next clause))))
+          (binding [*implicit-source* (:implicit-source context)]
+            (update context :rels collapse-rels (ha/<? (solve-rule context clause)))))
         (ha/<? (-resolve-clause context clause)))))
 
    (defn -q [context clauses]
-     (set! *implicit-source* (get (:sources context) '$))    ;; TODO: rethink this
-     (ha/reduce< resolve-clause context clauses)
-     #_(binding [*implicit-source* (get (:sources context) '$)]
-       (ha/reduce< resolve-clause context clauses)))
+     (let [enriched-context (assoc context :implicit-source (get (:sources context) '$))]
+       (ha/reduce< resolve-clause enriched-context clauses)))
 
    (defn -collect
      ([context symbols]
