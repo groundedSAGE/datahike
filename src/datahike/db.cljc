@@ -204,7 +204,7 @@
 (defrecord-updatable DB [schema eavt aevt avet temporal-eavt temporal-aevt temporal-avet max-eid max-tx rschema hash config]
   #?@(:cljs
       [IHash (-hash [db] hash)
-       IEquiv (-equiv [db other] (ha/<?? (equiv-db db other)))
+       IEquiv (-equiv [db other] (equiv-db db other))
        ISeqable (-seq [db] (-seq (.-eavt db)))
        IReversible (-rseq [db] (-rseq (.-eavt db)))
        ICounted (-count [db] (count (.-eavt db)))
@@ -254,41 +254,49 @@
                      index-type))))
 
   (-seek-datoms [db index-type cs]
-                (ha/<?? (ha/go-try
+                (do
+                  (println "-seek-datoms")
+                  (ha/<?? (ha/go-try
+                           (-slice (get db index-type)
+                                   (ha/<? (components->pattern db index-type cs e0 tx0))
+                                   (datom emax nil nil txmax)
+                                   index-type)))))
+
+  (-rseek-datoms [db index-type cs]
+                 (do 
+                   (println "-rseek-datoms")
+                   (-> (ha/<??
+                        (ha/go-try
                          (-slice (get db index-type)
                                  (ha/<? (components->pattern db index-type cs e0 tx0))
                                  (datom emax nil nil txmax)
-                                 index-type))))
-
-  (-rseek-datoms [db index-type cs]
-                 (-> (ha/<??
-                      (ha/go-try
-                       (-slice (get db index-type)
-                               (ha/<? (components->pattern db index-type cs e0 tx0))
-                               (datom emax nil nil txmax)
-                               index-type)))
-                     vec
-                     rseq))
+                                 index-type)))
+                       vec
+                       rseq)))
 
   (-index-range [db attr start end]
                 (when-not (indexing? db attr)
                   (raise "Attribute" attr "should be marked as :db/index true" {}))
                 (validate-attr attr (list '-index-range 'db attr start end) db)
                 (let [{:keys [avet]} db]
-                  (ha/<??
-                   (-slice avet
-                           (ha/<? (resolve-datom db nil attr start nil e0 tx0))
-                           (ha/<? (resolve-datom db nil attr end nil emax txmax))
-                           :avet))))
+                  (do 
+                    (println "-index-range")
+                    (ha/<??
+                     (-slice avet
+                             (ha/<? (resolve-datom db nil attr start nil e0 tx0))
+                             (ha/<? (resolve-datom db nil attr end nil emax txmax))
+                             :avet)))))
 
   clojure.data/EqualityPartition
   (equality-partition [x] :datahike/db)
 
   clojure.data/Diff
   (diff-similar [a b]
-                (let [datoms-a (ha/<?? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))
-                      datoms-b (ha/<?? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))]
-                  (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick))))
+                (do 
+                  (println "diff-similar")
+                  (let [datoms-a (ha/<?? (-slice (:eavt a) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))
+                        datoms-b (ha/<?? (-slice (:eavt b) (datom e0 nil nil tx0) (datom emax nil nil txmax) :eavt))]
+                    (dd/diff-sorted datoms-a datoms-b dd/cmp-datoms-eavt-quick)))))
 
 (defn db? [x]
   (and (satisfies? ISearch x)

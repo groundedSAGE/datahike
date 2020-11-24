@@ -6,7 +6,9 @@
    [datahike.pull-api :as dp]
    [datahike.query :as dq]
    [datahike.constants :as dc]
-   [datahike.impl.entity :as de])
+   [datahike.impl.entity :as de]
+   [clojure.core.async :as async]
+   [hitchhiker.tree.utils.cljs.async :as ha])
   #?(:clj
      (:import
       [datahike.db FilteredDB]
@@ -246,7 +248,7 @@
   "Applies transaction to an immutable db value, returning new immutable db value. Same as `(:db-after (with db tx-data))`."
   [db tx-data]
   {:pre [(db/db? db)]}
-  (:db-after (with db tx-data)))
+  (ha/go-try (:db-after (ha/<? (with db tx-data)))))
 
 
 ; Index lookups

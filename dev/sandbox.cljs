@@ -4,7 +4,8 @@
    [datahike.db :as db]
    [clojure.core.async :as async]
    [hitchhiker.tree.utils.cljs.async :as ha]
-   [datahike.impl.entity :refer [entity]]))
+   ;[datahike.impl.entity :refer [entity]]
+   [datahike.core :as d]))
 
 (async/go
   (def working-tx-dummy {:initial-report {:db-before (async/<! (db/empty-db)), :db-after (async/<! (db/empty-db)), :tx-data [], :tempids {}, :tx-meta nil}
@@ -13,27 +14,14 @@
 
 
 (comment
+  ;; REPL-driven code
 
-  (require '[datahike.db :as dd])
-  (require '[datahike.datom :refer [datom]])
-
-  (let [db (dd/init-db [(datom 1 :foo "bar") (datom 2 :qux :quun)])]
-    (dd/-datoms db :eavt nil))
-
-  (println "testing")
+  (println "test that browser is connected")
 
 
-  (macroexpand-1 '(ha/<?? (ha/go-try (+ 1 1))))
-
-  (println working-tx-dummy)
-
-  (async/go (println (ha/<? (db/empty-db))))
-
-  (async/go (println (async/<! (db/init-db []))))
-
-
-  (async/go (println (async/<! (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))))
-
+  ;;
+  ;; Primary work
+  ;;
 
   (defn with
     "Same as [[transact!]], but applies to an immutable database value. Returns transaction report (see [[transact!]])."
@@ -58,6 +46,37 @@
                                       [?e :name "bob"]
                                       [?e :age ?a]]
                                     bob-db))))
+
+  (async/go (println (async/<! (:db/id (d/entity bob-db 1)))))
+
+  ;;
+  ;; Initial work
+  ;; 
+
+  (println working-tx-dummy) 
+
+  (async/go (println (ha/<? (db/empty-db)))) 
+
+  (async/go (println (async/<! (db/init-db []))))
+
+
+  (async/go (println (async/<! (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))))
+  
+
+  ;; Testing that datom works
+
+  (require '[datahike.datom :refer [datom]])
+
+  (async/go
+    (let [db-result (async/<! (db/init-db [(datom 1 :foo "bar") (datom 2 :qux :quun)]))
+          _ (println "db-result" db-result)]
+      (println (async/<! (db/-datoms db-result :eavt nil)))))
+
+
+
+
+
+
 
 
 
