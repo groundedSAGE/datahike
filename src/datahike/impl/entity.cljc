@@ -54,15 +54,15 @@
               (equiv-entity this other))
 
        ;; js/map interface
-       (keys [this]
-             (es6-iterator (c/keys this)))
-       (entries [this]
+       #_(keys [this]
+             (es6-iterator (c/keys this)))  ; TODO: consider removing of async version
+       #_(entries [this]
                 (es6-entries-iterator (js-seq this)))
-       (values [this]
+       #_(values [this]
                (es6-iterator (map second (js-seq this))))
-       (has [this attr]
+       #_(has [this attr]
             (not (nil? (.get this attr))))
-       (get [this attr]
+       #_(get [this attr]
             (if (= attr ":db/id")
               eid
               (if (db/reverse-ref? attr)
@@ -70,24 +70,24 @@
                     multival->js)
                 (cond-> (lookup-entity this attr)
                   (db/multival? db attr) multival->js))))
-       (forEach [this f]
+       #_(forEach [this f]
                 (doseq [[a v] (js-seq this)]
                   (f v a this)))
-       (forEach [this f use-as-this]
+       #_(forEach [this f use-as-this]
                 (doseq [[a v] (js-seq this)]
                   (.call f use-as-this v a this)))
 
        ;; js fallbacks
-       (key_set   [this] (to-array (c/keys this)))
-       (entry_set [this] (to-array (map to-array (js-seq this))))
-       (value_set [this] (to-array (map second (js-seq this))))
+       #_(key_set   [this] (to-array (c/keys this)))
+       #_(entry_set [this] (to-array (map to-array (js-seq this))))
+       #_(value_set [this] (to-array (map second (js-seq this))))
 
        IEquiv
        (-equiv [this o] (equiv-entity this o))
 
        IHash
        (-hash [_]
-              (hash eid)) ;; db?
+              (hash eid)) ;; db? ; TODO: (hash db)
 
        ISeqable
        (-seq [this]
