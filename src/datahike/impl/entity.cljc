@@ -27,6 +27,7 @@
       (:v (first datoms)))))
 
 (defn- -lookup-backwards [db eid attr not-found]
+  ;; becomes async
   (if-let [datoms (not-empty (db/-search db [nil attr eid]))]
     (if (db/component? db attr)
       (entity db (:e (first datoms)))
@@ -54,15 +55,15 @@
               (equiv-entity this other))
 
        ;; js/map interface
-       #_(keys [this]
+       (keys [this]
              (es6-iterator (c/keys this)))  ; TODO: consider removing of async version
-       #_(entries [this]
+       (entries [this]
                 (es6-entries-iterator (js-seq this)))
-       #_(values [this]
+       (values [this]
                (es6-iterator (map second (js-seq this))))
-       #_(has [this attr]
+       (has [this attr]
             (not (nil? (.get this attr))))
-       #_(get [this attr]
+       (get [this attr]                     ; TODO: Needs to be async or use cache
             (if (= attr ":db/id")
               eid
               (if (db/reverse-ref? attr)
@@ -70,17 +71,17 @@
                     multival->js)
                 (cond-> (lookup-entity this attr)
                   (db/multival? db attr) multival->js))))
-       #_(forEach [this f]
+       (forEach [this f]
                 (doseq [[a v] (js-seq this)]
                   (f v a this)))
-       #_(forEach [this f use-as-this]
+       (forEach [this f use-as-this]
                 (doseq [[a v] (js-seq this)]
                   (.call f use-as-this v a this)))
 
        ;; js fallbacks
-       #_(key_set   [this] (to-array (c/keys this)))
-       #_(entry_set [this] (to-array (map to-array (js-seq this))))
-       #_(value_set [this] (to-array (map second (js-seq this))))
+       (key_set   [this] (to-array (c/keys this)))
+       (entry_set [this] (to-array (map to-array (js-seq this))))
+       (value_set [this] (to-array (map second (js-seq this))))
 
        IEquiv
        (-equiv [this o] (equiv-entity this o))
@@ -91,7 +92,7 @@
 
        ISeqable
        (-seq [this]
-             (touch this)
+             (touch this) ;; TODO: If not already touched throw an exception in cljs (defn ensure-touched ..)
              (seq @cache))
 
        ICounted
@@ -158,6 +159,7 @@
    (= (.-eid this) (.-eid ^Entity that))))
 
 (defn- lookup-entity
+  ;; becomes async
   ([this attr] (lookup-entity this attr nil))
   ([^Entity this attr not-found]
    (if (= attr :db/id)
@@ -175,6 +177,7 @@
              not-found)))))))
 
 (defn touch-components [db a->v]
+  ;; becomes async
   (reduce-kv (fn [acc a v]
                (assoc acc a
                       (if (db/component? db a)
@@ -191,6 +194,7 @@
           {} (partition-by :a datoms)))
 
 (defn touch [^Entity e]
+  ;; becomes async
   {:pre [(entity? e)]}
   (when-not @(.-touched e)
     (when-let [datoms (not-empty (db/-search (.-db e) [(.-eid e)]))]
