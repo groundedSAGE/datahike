@@ -5,7 +5,8 @@
    [clojure.core.async :as async]
    [hitchhiker.tree.utils.cljs.async :as ha]
    ;[datahike.impl.entity :refer [entity]]
-   [datahike.core :as d]))
+   [datahike.core :as d]
+   [datahike.impl.entity :as de]))
 
 (async/go
   (def working-tx-dummy {:initial-report {:db-before (async/<! (db/empty-db)), :db-after (async/<! (db/empty-db)), :tx-data [], :tempids {}, :tx-meta nil}
@@ -15,14 +16,14 @@
 
 (comment
   ;; REPL-driven code
-
+  
   (println "test that browser is connected")
 
 
   ;;
   ;; Primary work
   ;;
-
+  
   (defn with
     "Same as [[transact!]], but applies to an immutable database value. Returns transaction report (see [[transact!]])."
     ([db tx-data] (with db tx-data nil))
@@ -47,12 +48,18 @@
                                       [?e :age ?a]]
                                     bob-db))))
 
-  (async/go (println (async/<! (:db/id (d/entity bob-db 1)))))
+  (async/go (println (async/<! (:name (d/entity bob-db 1)))))
+  
+  (async/go  (async/<! (:db/id (de/entity bob-db 1))))
+  
+  (d/entity bob-db 1)
+  
+  
 
   ;;
   ;; Initial work
   ;; 
-
+  
   (println working-tx-dummy) 
 
   (async/go (println (ha/<? (db/empty-db)))) 
@@ -64,7 +71,7 @@
   
 
   ;; Testing that datom works
-
+  
   (require '[datahike.datom :refer [datom]])
 
   (async/go
@@ -83,6 +90,6 @@
 
   ;(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}
   ;               :initial-es [#:db{:ident :name, :cardinality :db.cardinality/one, :index true, :unique :db.unique/identity, :valueType :db.type/string} #:db{:ident :sibling, :cardinality :db.cardinality/many, :valueType :db.type/ref} #:db{:ident :age, :cardinality :db.cardinality/one, :valueType :db.type/long}]})
-
+  
   ;;
   )
