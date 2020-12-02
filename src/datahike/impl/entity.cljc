@@ -19,6 +19,8 @@
   {:pre [(db/db? db)]}
   ;(println "The entity function: " db " eid " eid)
   (ha/go-try
+   #_(ha/<? ;;pre-touch
+    (touch))
    (when-let [e (ha/<? (entid db eid))]
      (let [return-entity (->Entity db e (volatile! false) (volatile! {}))]
       ;(println "return entity " return-entity)
@@ -37,12 +39,12 @@
 
 (defn- -lookup-backwards [db eid attr not-found]
   ;; becomes async
-  
-  (if-let [datoms (not-empty (db/-search db [nil attr eid]))]
-    (if (db/component? db attr)
-      (entity db (:e (first datoms)))
-      (reduce #(conj %1 (entity db (:e %2))) #{} datoms))
-    not-found))
+  (ha/go-try
+   (if-let [datoms (not-empty (ha/<? (db/-search db [nil attr eid])))]
+     (if (db/component? db attr)
+       (ha/<? (entity db (:e (first datoms))))
+       (ha/<? (ha/reduce< #(ha/go-try (conj %1 (ha/<? (entity db (:e %2))))) #{} datoms)))
+     not-found)))
 
 #?(:cljs
    (defn- multival->js [val]
@@ -80,8 +82,10 @@
              (if (= attr ":db/id")
                eid
                (if (db/reverse-ref? attr)
-                 (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
-                     multival->js)
+                 (do 
+                   (println "reverse lookup")
+                   (-> (ha/<? (-lookup-backwards db eid (db/reverse-ref attr) nil))
+                         multival->js))
                  (cond-> (ha/<? (lookup-entity this attr))
                    (db/multival? db attr) multival->js)))))
        #_(forEach [this f]
@@ -186,7 +190,7 @@
     (if (= attr :db/id)
       (.-eid this)
       (if (db/reverse-ref? attr)
-        (-lookup-backwards (.-db this) (.-eid this) (db/reverse-ref attr) not-found)
+        (ha/<? (-lookup-backwards (.-db this) (.-eid this) (db/reverse-ref attr) not-found))
         (if-some [v (@(.-cache this) attr)]
           v
           (if @(.-touched this) 
@@ -202,14 +206,12 @@
   ;; becomes async
   (ha/reduce< (fn [acc [a v]]
                 (ha/go-try
-                 (println "before assoc")
                  (assoc acc a
                         (if (db/component? db a)
                           (if (db/multival? db a)
                             (set (ha/map< touch v))
                             (ha/<? (touch v)))
-                          v))
-                 (println "after assoc")))
+                          v))))
               {} a->v))
 
 (defn- datoms->cache [db datoms]
@@ -222,19 +224,19 @@
 (defn touch [^Entity e]
   ;; becomes async
   {:pre [(entity? e)]}
-  (println "inside touch")
+  #_(println "inside touch")
   (ha/go-try    ; This is kind of a lingering go-try maybe it needs to be closed?
-   (println "touched? " @(.-touched e))
+   #_(println "touched? " @(.-touched e))
    (when-not @(.-touched e)
      (do
        (when-let [datoms (not-empty (ha/<? (db/-search (.-db e) [(.-eid e)])))]
-         (println "when-let invoked")
          (vreset! (.-cache e) (->> datoms
                                    (datoms->cache (.-db e))
                                    (ha/<?)
                                    (touch-components (.-db e))
                                    (ha/<?)))
          (vreset! (.-touched e) true)
+         #_(println "after touched? " @(.-touched e))
          )))
    e))
 
