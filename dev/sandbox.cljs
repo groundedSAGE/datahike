@@ -2,7 +2,7 @@
   (:require ;[datahike.api :as d]
    [datahike.query :as q]
    [datahike.db :as db]
-   [clojure.core.async :as async]
+   [clojure.core.async :as async :refer [<!]]
    [hitchhiker.tree.utils.cljs.async :as ha]
    ;[datahike.impl.entity :refer [entity]]
    [datahike.core :as d]
@@ -48,11 +48,13 @@
                                       [?e :age ?a]]
                                     bob-db))))
 
-  (async/go (println (async/<! (:name (d/entity bob-db 1)))))
+  (async/go (println (<! ((<! (de/entity bob-db 1)) :name))))
+  (async/go (println (async/<! ((async/<! (de/entity bob-db 1)) :age))))
+  (async/go (println (async/<! ((async/<! (de/entity bob-db 1)) :db/id))))
   
-  (async/go  (async/<! (:db/id (de/entity bob-db 1))))
+  (async/go  (def touched-entity (<! (de/touch (<! (de/entity bob-db 1))))))
   
-  (d/entity bob-db 1)
+  (.-cache touched-entity)
   
   
 

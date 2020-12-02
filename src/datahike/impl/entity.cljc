@@ -17,21 +17,23 @@
 
 (defn entity [db eid]
   {:pre [(db/db? db)]}
-  (println "The entity function: " db " eid " eid)
-  (when-let [e (entid db eid)]
-    (let [return-entity (->Entity db e (volatile! false) (volatile! {}))]
-      (println "return entity " return-entity)
-      (touch return-entity)
-      return-entity)))
+  ;(println "The entity function: " db " eid " eid)
+  (ha/go-try
+   (when-let [e (ha/<? (entid db eid))]
+     (let [return-entity (->Entity db e (volatile! false) (volatile! {}))]
+      ;(println "return entity " return-entity)
+      ;(touch return-entity)
+       return-entity))))
 
 (defn- entity-attr [db a datoms]
-  (if (db/multival? db a)
-    (if (db/ref? db a)
-      (reduce #(conj %1 (entity db (:v %2))) #{} datoms)
-      (reduce #(conj %1 (:v %2)) #{} datoms))
-    (if (db/ref? db a)
-      (entity db (:v (first datoms)))
-      (:v (first datoms)))))
+  (ha/go-try
+   (if (db/multival? db a)
+     (if (db/ref? db a)
+       (ha/<? (ha/reduce< #(ha/go-try (conj %1 (ha/<? (entity db (:v %2))))) #{} datoms))
+       (reduce #(conj %1 (:v %2)) #{} datoms))
+     (if (db/ref? db a)
+       (ha/<? (entity db (:v (first datoms))))
+       (:v (first datoms))))))
 
 (defn- -lookup-backwards [db eid attr not-found]
   ;; becomes async
@@ -65,33 +67,34 @@
               (equiv-entity this other))
 
        ;; js/map interface
-       (keys [this]
+       #_(keys [this]
              (es6-iterator (c/keys this)))  ; TODO: consider removing of async version
-       (entries [this]
+       #_(entries [this]
                 (es6-entries-iterator (js-seq this)))
-       (values [this]
+       #_(values [this]
                (es6-iterator (map second (js-seq this))))
-       (has [this attr]
+       #_(has [this attr]
             (not (nil? (.get this attr))))
        (get [this attr]                     ; TODO: Needs to be async or use cache
-            (if (= attr ":db/id")
-              eid
-              (if (db/reverse-ref? attr)
-                (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
-                    multival->js)
-                (cond-> (lookup-entity this attr)
-                  (db/multival? db attr) multival->js))))
-       (forEach [this f]
+            (ha/go-try
+             (if (= attr ":db/id")
+               eid
+               (if (db/reverse-ref? attr)
+                 (-> (-lookup-backwards db eid (db/reverse-ref attr) nil)
+                     multival->js)
+                 (cond-> (ha/<? (lookup-entity this attr))
+                   (db/multival? db attr) multival->js)))))
+       #_(forEach [this f]
                 (doseq [[a v] (js-seq this)]
                   (f v a this)))
-       (forEach [this f use-as-this]
+       #_(forEach [this f use-as-this]
                 (doseq [[a v] (js-seq this)]
                   (.call f use-as-this v a this)))
 
        ;; js fallbacks
-       (key_set   [this] (to-array (c/keys this)))
-       (entry_set [this] (to-array (map to-array (js-seq this))))
-       (value_set [this] (to-array (map second (js-seq this))))
+       #_(key_set   [this] (to-array (c/keys this)))
+       #_(entry_set [this] (to-array (map to-array (js-seq this))))
+       #_(value_set [this] (to-array (map second (js-seq this))))
 
        IEquiv
        (-equiv [this o] (equiv-entity this o))
@@ -102,24 +105,24 @@
 
        ISeqable
        (-seq [this]
-             (touch this) ;; TODO: If not already touched throw an exception in cljs (defn ensure-touched ..)
-             (if (.-touched this) 
+             #_(touch this) ;; TODO: If not already touched throw an exception in cljs (defn ensure-touched ..)
+             (if @(.-touched this) 
                (seq @cache)
                (throw (js/Error. "Entity not touched."))))
 
        ICounted
        (-count [this]
-               (touch this)
-               (if (.-touched this)
+               #_(touch this)
+               (if @(.-touched this)
                  (count @cache)
                  (throw (js/Error. "Entity not touched."))))
 
-       ILookup
-       (-lookup [this attr]           (lookup-entity this attr nil))
-       (-lookup [this attr not-found] (lookup-entity this attr not-found))
+       #_ILookup
+       #_(-lookup [this attr]           (lookup-entity this attr nil))
+       #_(-lookup [this attr not-found] (lookup-entity this attr not-found))
 
-       IAssociative
-       (-contains-key? [this k]
+       #_IAssociative
+       #_(-contains-key? [this k]
                        (not= ::nf (lookup-entity this k ::nf)))
 
        IFn
@@ -130,7 +133,10 @@
 
        IPrintWithWriter
        (-pr-writer [_ writer opts]
-                   (-pr-writer (assoc @cache :db/id eid) writer opts))]
+                   (do
+                     (println "printer" @cache)
+                     
+                     (-pr-writer (assoc @cache :db/id eid) writer opts)))]
 
       :clj
       [Object
@@ -176,78 +182,62 @@
   ;; becomes async
   ([this attr] (lookup-entity this attr nil))
   ([^Entity this attr not-found]
-   (println "inside lookup-entity: " "this: " this "attr: " attr )
    (ha/go-try
-    (println "inside the go try of lookup-entity")
     (if (= attr :db/id)
-      (do (println "first if" (ha/<? (.-eid this))) 
-          (ha/<? (.-eid this)))
-      (do 
-        (println "running next if")
-        (if (db/reverse-ref? attr)
-          (-lookup-backwards (.-db this) (.-eid this) (db/reverse-ref attr) not-found)
-          (do 
-            (println "running if some")
-            (if-some [v (@(.-cache this) attr)]
-              (do (println "this is v " v) v)
-              (do
-                (println "running if-touched")
-                (if @(.-touched this)
-                  (do (println "not found") not-found)
-                  (do
-                    (println "running if-some because not touched")
-                    (println "datoms? " (ha/<? (db/-search (.-db this) [(ha/<? (.-eid this)) attr])))
-                    (if-some [datoms (not-empty (ha/<? (db/-search (.-db this) [(ha/<? (.-eid this)) attr])))]
-                      (do
-                        (println "this is the datoms")
-                        (let [value (entity-attr (.-db this) attr datoms)]
-                          (vreset! (.-cache this) (assoc @(.-cache this) attr value))
-                          value))
-                      not-found))))))))))))
+      (.-eid this)
+      (if (db/reverse-ref? attr)
+        (-lookup-backwards (.-db this) (.-eid this) (db/reverse-ref attr) not-found)
+        (if-some [v (@(.-cache this) attr)]
+          v
+          (if @(.-touched this) 
+            not-found
+            (if-some [datoms (not-empty (ha/<? (db/-search (.-db this) [(.-eid this) attr])))]
+              (let [value (ha/<? (entity-attr (.-db this) attr datoms))]
+                (vreset! (.-cache this) (assoc @(.-cache this) attr value))
+                value)
+              not-found))))))))
 
 
 (defn touch-components [db a->v]
   ;; becomes async
-  (ha/go-try
-   (reduce-kv (fn [acc a v]
-                (assoc acc a
-                       (if (db/component? db a)
-                         (if (db/multival? db a)
-                           (set (map touch v))
-                           (ha/<? (touch v)))
-                         v)))
-              {} a->v)))
+  (ha/reduce< (fn [acc [a v]]
+                (ha/go-try
+                 (println "before assoc")
+                 (assoc acc a
+                        (if (db/component? db a)
+                          (if (db/multival? db a)
+                            (set (ha/map< touch v))
+                            (ha/<? (touch v)))
+                          v))
+                 (println "after assoc")))
+              {} a->v))
 
 (defn- datoms->cache [db datoms]
-  (reduce (fn [acc part]
-            (let [a (:a (first part))]
-              (assoc acc a (entity-attr db a part))))
+  (ha/reduce< (fn [acc part]
+                (ha/go-try
+                 (let [a (:a (first part))]
+                   (assoc acc a (ha/<? (entity-attr db a part))))))
           {} (partition-by :a datoms)))
 
 (defn touch [^Entity e]
   ;; becomes async
   {:pre [(entity? e)]}
-  ;(println "inside touch")
+  (println "inside touch")
   (ha/go-try    ; This is kind of a lingering go-try maybe it needs to be closed?
-   ;(println "inside touch go-try")
-   ;(println "is it touched " @(.-touched e))
+   (println "touched? " @(.-touched e))
    (when-not @(.-touched e)
      (do
-       ;(println "before the when-let")
-       (println "another" [(ha/<? (.-eid e))]  (.-db e) [(.-eid e)])
-       ;(println "with eid" (ha/<? (db/-search (.-db e) [(ha/<? (.-eid e))])))
-       (when-let [datoms (not-empty (ha/<? (db/-search (.-db e) [(ha/<? (.-eid e))])))]
-         ;(println "in the when-let")
-         ;(println "touched? " (.-touched e))
-         ;(println "cache " (.-cache e))
+       (when-let [datoms (not-empty (ha/<? (db/-search (.-db e) [(.-eid e)])))]
+         (println "when-let invoked")
          (vreset! (.-cache e) (->> datoms
                                    (datoms->cache (.-db e))
+                                   (ha/<?)
                                    (touch-components (.-db e))
                                    (ha/<?)))
          (vreset! (.-touched e) true)
-         ;(println "cache " (.-cache e))
-         ;(println "touched? " (.-touched e))
-         ))))
-  e)
+         )))
+   e))
 
 #?(:cljs (goog/exportSymbol "datahike.impl.entity.Entity" Entity))
+
+
