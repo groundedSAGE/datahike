@@ -6,7 +6,7 @@
             #?(:cljs [hitchhiker.tree-cljs :as tree])
             [hitchhiker.tree.utils.gc :refer [mark]]
             [clojure.core.async]
-            [konserve.gc :refer [sweep!]]
+            ;[konserve.gc :refer [sweep!]]
             [datahike.constants :refer [e0 tx0 emax txmax]]
             [datahike.datom :as dd]
             [clojure.set :as set]

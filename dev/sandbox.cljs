@@ -2,8 +2,10 @@
   (:require ;[datahike.api :as d]
    [datahike.query :as q]
    [datahike.db :as db]
-   [clojure.core.async :as async :refer [<!]]
+   [clojure.core.async :as async :refer [go <!]]
    [hitchhiker.tree.utils.cljs.async :as ha]
+   [konserve.core :as k]
+   [konserve.indexeddb :refer [new-indexeddb-store]]
    ;[datahike.impl.entity :refer [entity]]
    [datahike.core :as d]
    [datahike.impl.entity :as de]))
@@ -49,9 +51,8 @@
                                                    :_friend [{:name "Boris"
                                                               :age 28}]}])))))
 
-  (ha/go-try (def sue-db (:db-after (ha/<? (with (ha/<? (db/empty-db schema))
-                                                 [{:name "Sue"
-                                                   :age 5}])))))
+
+
 
 
   ;; Query bob-db
@@ -93,6 +94,67 @@
 
   ;; Experiments
   (async/go (println (<! (:name (<! (de/entity bob-db 1))))))
+  (async/go  (println (<! (de/touch (<! (de/entity bob-db 1))))))
+  (async/go  (println (<! bob-db)))
+
+  ;; IndexedDB experiments
+
+
+  (ha/go-try (def bob-db-tx (:tx-data (ha/<? (with (ha/<? (db/empty-db schema))
+                                                   [{:name "Bob"
+                                                     :age 5
+                                                     :aka  ["Max" "Jack"]
+                                                     :_friend [{:name "Boris"
+                                                                :age 28}]}])))))
+
+
+
+
+  (count bob-db-tx)
+
+
+
+
+
+
+  (defn cleaner [x]
+    [(first x) (vec (map rest (second x)))])
+
+
+  (go (def my-db (<! (new-indexeddb-store "konserve"))))
+
+  ;; experimental - start
+  (go (doseq [[eid data] (map cleaner (group-by first bob-db-tx))]  
+        (<! (k/assoc-in my-db [eid] data))))
+  
+  (go (println "get:" (<! (k/get-in my-db [1]))))
+  
+  ;; experimental - end
+
+  (go (println "get:" (<! (k/get-in my-db ["test"]))))
+
+  (macroexpand-1 '(k/go-locked nil nil))
+
+  (go (doseq [i (range 10)] (<! (k/assoc-in my-db [i] i))))
+
+  ;; prints 0 to 9 each on a line
+  (go (doseq [i (range 10)]
+        (println "test" (<! (k/get-in my-db [i])))))
+
+
+  (go (println (<! (k/get-in my-db [0]))))
+
+
+  (go (println (<! (k/assoc-in my-db
+                               ["test"]
+                               {:a 1 :b 4.2}))))
+
+  (go (doseq [i (range 10)]
+        (println "testing" (<! (k/get-in my-db [i])))))
+
+  (go (println (<! (k/update-in my-db
+                                ["test" :a]
+                                inc))))
 
 
 

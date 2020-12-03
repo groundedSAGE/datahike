@@ -10,7 +10,7 @@
                                        :sha "e70abe063adb6ed064e78daa7e00f4b03d6222a8"}
         io.replikativ/superv.async    {:mvn/version "0.2.11"}
         io.lambdaforge/datalog-parser #_{:local/root "../datalog-parser/replikativ-datalog-parser.jar"} {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
-                                       :sha "b268f7b0153cda8e4b5fa905870f5b80b1016f5f"}
+                                                                                                         :sha "b268f7b0153cda8e4b5fa905870f5b80b1016f5f"}
         io.replikativ/zufall          {:mvn/version "0.1.0"}
         junit/junit                   {:mvn/version "4.13"}}
  :paths ["src" "target/classes"]
