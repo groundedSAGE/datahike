@@ -49,6 +49,10 @@
                                                    :_friend [{:name "Boris"
                                                               :age 28}]}])))))
 
+  (ha/go-try (def sue-db (:db-after (ha/<? (with (ha/<? (db/empty-db schema))
+                                                 [{:name "Sue"
+                                                   :age 5}])))))
+
 
   ;; Query bob-db
   (async/go (println (async/<! (q/q '[:find ?a :where
@@ -56,7 +60,7 @@
                                       [?e :age ?a]]
                                     bob-db))))
 
-  
+
   ;; Looking up entity associated with "Bob"
   (async/go (println (<! ((<! (de/entity bob-db 1)) :name))))
   (async/go (println (first (<! ((<! (de/entity bob-db 1)) :aka)))))
@@ -64,23 +68,33 @@
   (async/go (println (<! ((<! (de/entity bob-db 1)) :_friend))))
   (async/go (println (<! ((<! (de/entity bob-db 1)) :db/id))))
 
-  
+
+
   ;; Looking up entity associated with "Boris"
   (async/go (println (<! ((<! (de/entity bob-db 2)) :name))))
   (async/go (println (<! ((<! (de/entity bob-db 2)) :friend))))
   (async/go (println (<! ((first (<! ((<! (de/entity bob-db 2)) :friend))) :name))))
 
-  
+
   ;; Operators over a touched db
   (async/go  (println (count (<! (de/touch (<! (de/entity bob-db 1)))))))
   (async/go  (println (keys (<! (de/touch (<! (de/entity bob-db 1)))))))
   (async/go  (println (vals (<! (de/touch (<! (de/entity bob-db 1)))))))
+  (async/go  (println (contains? (<! (de/touch (<! (de/entity bob-db 1)))) :name)))
+
 
   ;; Inspect a touched entity
   (async/go  (def touched-entity (<! (de/touch (<! (de/entity bob-db 1))))))
   @(.-cache touched-entity)
   @(.-touched touched-entity)
+  @(.-db touched-entity)
   (count touched-entity)
+
+
+  ;; Experiments
+  (async/go (println (<! (:name (<! (de/entity bob-db 1))))))
+
+
 
 
   ;(async/go  (println (count (<! (de/entity bob-db 1))))) ;; works with pre-touch on entity

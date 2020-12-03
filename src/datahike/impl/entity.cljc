@@ -121,13 +121,14 @@
                  (count @cache)
                  (throw (js/Error. "Entity not touched."))))
 
-       #_ILookup
-       #_(-lookup [this attr]           (lookup-entity this attr nil))
-       #_(-lookup [this attr not-found] (lookup-entity this attr not-found))
+       ILookup
+       (-lookup [this attr]           (lookup-entity this attr nil))
+       (-lookup [this attr not-found] (lookup-entity this attr not-found))
 
-       #_IAssociative
-       #_(-contains-key? [this k]
-                       (not= ::nf (lookup-entity this k ::nf)))
+       IAssociative
+       (-contains-key? [this k]
+                       (contains? @cache k)
+                       #_(not= ::nf (lookup-entity this k ::nf)))
 
        IFn
        (-invoke [this k]
