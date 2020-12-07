@@ -69,7 +69,7 @@
     #?(:clj (try
               (Boolean/parseBoolean bool-str)
               (catch Exception _ default))
-       :cljs (if (or (= bool-str "true") (= bool-str "false"))
+       :cljs default #_(if (or (= bool-str "true") (= bool-str "false"))
                (edn/read-string bool-str)
                (throw (js/Error. (str "Datom/-nth: Index out of bounds: " bool-str))))))
 
@@ -98,18 +98,13 @@
   (when-not (s/valid? :datahike/config config)
     (throw (ex-info "Invalid datahike configuration." config))))
 
-#?(:clj (defn storeless-config []
-          {:store nil
-           :keep-history? false
-           :schema-flexibility :read
-           :name (z/rand-german-mammal)
-           :index :datahike.index/hitchhiker-tree})
-   :cljs    (defn storeless-config []
-              {:store nil
-               :keep-history? false
-               :schema-flexibility :read
-               :name "TODO: fix this"
-               :index :datahike.index/hitchhiker-tree}))
+(defn storeless-config []
+  {:store nil
+   :keep-history? false
+   :schema-flexibility :read
+   :name #?(:clj (z/rand-german-mammal)
+            :cljs "TODO: fix this")
+   :index :datahike.index/hitchhiker-tree})
 
 (defn remove-nils
   "Thanks to https://stackoverflow.com/a/34221816"
@@ -121,37 +116,43 @@
               x))]
     (clojure.walk/postwalk f m)))
 
-#?(:clj (defn load-config
-          "Load and validate configuration with defaults from the store."
-          ([]
-           (load-config nil nil))
-          ([config-as-arg]
-           (load-config config-as-arg nil))
-          ([config-as-arg opts]
-           (let [config-as-arg (if (s/valid? :datahike/config-depr config-as-arg)
-                                 (apply from-deprecated config-as-arg (first opts))
-                                 config-as-arg)
-                 store-config (ds/default-config (merge
-                                                  {:backend (keyword (:datahike-store-backend env :mem))}
-                                                  (:store config-as-arg)))
-                 config {:store store-config
-                         :initial-tx (:datahike-intial-tx env)
-                         :keep-history? (bool-from-env :datahike-keep-history true)
-                         :name (:datahike-name env (z/rand-german-mammal))
-                         :schema-flexibility (keyword (:datahike-schema-flexibility env :write))
-                         :index (keyword "datahike.index" (:datahike-index env "hitchhiker-tree"))}
-                 merged-config ((comp remove-nils deep-merge) config config-as-arg)
-                 _             (log/debug "Using config " merged-config)
-                 {:keys [keep-history? name schema-flexibility index initial-tx store]} merged-config
-                 config-spec (ds/config-spec store)]
-             (when config-spec
-               (when-not (s/valid? config-spec store)
-                 (throw (ex-info "Invalid store configuration." (s/explain-data config-spec store)))))
-             (when-not (s/valid? :datahike/config merged-config)
-               (throw (ex-info "Invalid Datahike configuration." (s/explain-data :datahike/config merged-config))))
-             (if (string? initial-tx)
-               (update merged-config :initial-tx (fn [path] (-> path slurp read-string)))
-               merged-config)))))
+(defn load-config
+  "Load and validate configuration with defaults from the store."
+  ([]
+   (load-config nil nil))
+  ([config-as-arg]
+   (load-config config-as-arg nil))
+  ([config-as-arg opts]
+   (println "inside load-config")
+   (let [config-as-arg (if (s/valid? :datahike/config-depr config-as-arg)
+                         (apply from-deprecated config-as-arg (first opts))
+                         config-as-arg)
+         _ (println "inside load-config Point: 1")
+         store-config (ds/default-config (merge
+                                          {:backend (keyword (:datahike-store-backend env :mem))}
+                                          (:store config-as-arg)))
+         _ (println "inside load-config Point: 2")
+         config {:store store-config
+                 :initial-tx (:datahike-intial-tx env)
+                 :keep-history? (bool-from-env :datahike-keep-history true)
+                 :name (:datahike-name env #?(:clj (z/rand-german-mammal)
+                                              :cljs  "TODO: fix this"))
+                 :schema-flexibility (keyword (:datahike-schema-flexibility env :write))
+                 :index (keyword "datahike.index" (:datahike-index env "hitchhiker-tree"))}
+         _ (println "inside load-config Point: 3")
+         merged-config ((comp remove-nils deep-merge) config config-as-arg)
+         _             (log/debug "Using config " merged-config)
+         {:keys [keep-history? name schema-flexibility index initial-tx store]} merged-config
+         config-spec (ds/config-spec store)
+          _ (println "inside load-config Point: 4")]
+     (when config-spec
+       (when-not (s/valid? config-spec store)
+         (throw (ex-info "Invalid store configuration." (s/explain-data config-spec store)))))
+     (when-not (s/valid? :datahike/config merged-config)
+       (throw (ex-info "Invalid Datahike configuration." (s/explain-data :datahike/config merged-config))))
+     (if (string? initial-tx)
+       merged-config #_(update merged-config :initial-tx (fn [path] (-> path slurp read-string)))
+       merged-config))))
 
 ;; deprecation begin
 (s/def ::backend-depr keyword?)

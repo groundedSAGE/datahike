@@ -70,7 +70,7 @@
 
        ;; js/map interface
        #_(keys [this]
-             (es6-iterator (c/keys this)))  ; TODO: consider removing of async version
+             (es6-iterator (c/keys this)))  ; TODO: throw exceptions
        #_(entries [this]
                 (es6-entries-iterator (js-seq this)))
        #_(values [this]

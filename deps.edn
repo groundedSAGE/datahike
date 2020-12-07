@@ -12,7 +12,9 @@
         io.lambdaforge/datalog-parser #_{:local/root "../datalog-parser/replikativ-datalog-parser.jar"} {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
                                                                                                          :sha "b268f7b0153cda8e4b5fa905870f5b80b1016f5f"}
         io.replikativ/zufall          {:mvn/version "0.1.0"}
-        junit/junit                   {:mvn/version "4.13"}}
+        junit/junit                   {:mvn/version "4.13"}
+        org.clojars.mmb90/cljs-cache  {:mvn/version "0.1.4"}}
+ 
  :paths ["src" "target/classes"]
 
  :aliases {:1.9 {:override-deps {org.clojure/clojure {:mvn/version "1.9.0"}}}
