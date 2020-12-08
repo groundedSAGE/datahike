@@ -140,10 +140,12 @@
 
      #?(:clj clojure.lang.IPersistentMap
         :cljs cljs.core/PersistentArrayMap)
+     
      (-database-exists? [config]
        (let [config (dc/load-config config)
              store-config (:store config)
-             raw-store (ds/connect-store store-config)]
+             _ (println "called database-exists?")
+             raw-store (ds/connect-store store-config)]  ;;TODO: connect-store returns a channel
          (if (not (nil? raw-store))
            (let [store (kons/add-hitchhiker-tree-handlers
                         (kc/ensure-cache
@@ -160,8 +162,9 @@
                (go-try S
                        (let [config (dc/load-config config)
                              store-config (:store config)
-                             ;_ (println "-connect config: " config)
-                             raw-store (ds/connect-store store-config)
+                             _ (js/console.log "-connect config: " config)
+                             raw-store (ha/<? (ds/connect-store store-config))
+                             _ (js/console.log "-connect raw-store: " raw-store)
                              _ (when-not raw-store
                                  (dt/raise "Backend does not exist." {:type :backend-does-not-exist
                                                                       :config config}))
@@ -169,15 +172,19 @@
                                     (kc/ensure-cache
                                      raw-store
                                      (atom (cache/lru-cache-factory {} :threshold 1000))))
+                             _ (js/console.log "-connect store: " store)
+                             
                              stored-db (<? S (k/get-in store [:db]))
-                             _ (when-not stored-db
+                             _ (js/console.log "-connect stored-db: " stored-db)
+                             #__ #_(when-not stored-db
                                  (ds/release-store store-config store)
                                  (dt/raise "Database does not exist." {:type :db-does-not-exist
                                                                        :config config}))
                              {:keys [eavt-key aevt-key avet-key temporal-eavt-key temporal-aevt-key temporal-avet-key schema rschema config max-tx hash]} stored-db
                              empty (<? S (db/empty-db nil config))
                              lock-ch (async/chan) ;; TODO: consider reader literals
-                             _ (async/put! lock-ch :unlocked)]
+                             _ (async/put! lock-ch :unlocked)
+                             _ (println "-connect Point: 1")]
                          (d/conn-from-db
                           (assoc empty
                                  :max-tx max-tx
@@ -200,14 +207,17 @@
                        (ha/go-try
                          (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
                                store-config (:store config)
+                               _ (println "Point: 1")
                                store (kc/ensure-cache
                                       (ha/<? (ds/empty-store store-config))
                                       (atom (cache/lru-cache-factory {} :threshold 1000)))
+                               _ (println "Point: 2")
                                stored-db (<? S (k/get-in store [:db]))
                                _ (when stored-db
                                    (dt/raise "Database already exists." {:type :db-already-exists :config store-config}))
                                {:keys [eavt aevt avet temporal-eavt temporal-aevt temporal-avet schema rschema config max-tx hash]}
                                (ha/<? (db/empty-db nil config))
+                               _ (println "Point: 3")
                                backend (kons/->KonserveBackend store)]
                            (<? S (k/assoc-in store [:db]
                                              (merge {:schema   schema

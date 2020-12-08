@@ -21,6 +21,7 @@
             :keep-history? false
             :schema-flexibility :write
             :initial-tx schema})
+  
 
   (d/delete-database cfg)
  
@@ -43,4 +44,44 @@
                           :in $ ?a
                           :where [?e :name ?v ?t] [?e :age ?a]]
                         @conn
-                        45)))))
+                        45))))
+  
+  ;; IndexedDB
+  
+   (def cfg-idb {:store  {:backend :indexeddb :id "idb-sandbox"}
+            :keep-history? false
+            :schema-flexibility :write
+            :initial-tx schema})
+  
+
+  (d/delete-database cfg-idb)
+  
+  ;(js/window.indexedDB.deleteDatabase "idb-sandbox")
+  (println "test")
+ 
+  (d/create-database cfg-idb)
+
+  (go (def conn-idb (<! (d/connect cfg-idb))))
+  
+  
+
+
+  (d/transact conn-idb [{:name "Alice"
+                     :age  25}
+                    {:name "Bob"
+                     :age  35}
+                    {:name    "Charlie"
+                     :age     45
+                     :sibling [[:name "Alice"] [:name "Bob"]]}])
+
+  (go (println (<! (d/q '[:find ?e ?a ?v ?t
+                          :in $ ?a
+                          :where [?e :name ?v ?t] [?e :age ?a]]
+                        @conn-idb
+                        45))))
+  
+  
+  
+  
+  ;;
+  )
