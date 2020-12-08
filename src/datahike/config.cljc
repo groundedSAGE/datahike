@@ -69,7 +69,7 @@
     #?(:clj (try
               (Boolean/parseBoolean bool-str)
               (catch Exception _ default))
-       :cljs default #_(if (or (= bool-str "true") (= bool-str "false"))
+       :cljs default #_(if (or (= bool-str "true") (= bool-str "false")) ;; TODO: fix environment settings for browsers
                (edn/read-string bool-str)
                (throw (js/Error. (str "Datom/-nth: Index out of bounds: " bool-str))))))
 
@@ -123,15 +123,12 @@
   ([config-as-arg]
    (load-config config-as-arg nil))
   ([config-as-arg opts]
-   (println "inside load-config")
    (let [config-as-arg (if (s/valid? :datahike/config-depr config-as-arg)
                          (apply from-deprecated config-as-arg (first opts))
                          config-as-arg)
-         _ (println "inside load-config Point: 1")
          store-config (ds/default-config (merge
                                           {:backend (keyword (:datahike-store-backend env :mem))}
                                           (:store config-as-arg)))
-         _ (println "inside load-config Point: 2")
          config {:store store-config
                  :initial-tx (:datahike-intial-tx env)
                  :keep-history? (bool-from-env :datahike-keep-history true)
@@ -139,12 +136,10 @@
                                               :cljs  "TODO: fix this"))
                  :schema-flexibility (keyword (:datahike-schema-flexibility env :write))
                  :index (keyword "datahike.index" (:datahike-index env "hitchhiker-tree"))}
-         _ (println "inside load-config Point: 3")
          merged-config ((comp remove-nils deep-merge) config config-as-arg)
          _             (log/debug "Using config " merged-config)
          {:keys [keep-history? name schema-flexibility index initial-tx store]} merged-config
-         config-spec (ds/config-spec store)
-          _ (println "inside load-config Point: 4")]
+         config-spec (ds/config-spec store)]
      (when config-spec
        (when-not (s/valid? config-spec store)
          (throw (ex-info "Invalid store configuration." (s/explain-data config-spec store)))))

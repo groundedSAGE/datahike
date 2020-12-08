@@ -149,8 +149,8 @@
   (hmsg/delete tree (datom->node datom index-type)))
 
 (defn -flush [tree backend]
-  nil ;TODO 
-  #_(:tree (ha/<?? (tree/flush-tree-without-root tree backend))))
+  (ha/go-try
+   (:tree (ha/<? (tree/flush-tree-without-root tree backend)))))
 
 (def -persistent! identity)
 

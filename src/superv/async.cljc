@@ -261,7 +261,7 @@ throwable object or the context has been aborted."
   "Same as core.async <!! but throws an exception if the channel returns a
 throwable object or the context has been aborted. "
   [S ch]
-  #?(:cljs (throw (js/Error. "TODO: better error message"))
+  #?(:cljs (throw (js/Error. "Sync call with superv"))
      :clj (do ;(println "Called function " (dissoc (tupelo/fn-info) :class-name :method-name :ns-name))
               ;(println "The caller " (dissoc (tupelo/fn-info-caller) :class-name :method-name :ns-name))
             (throw-if-exception S

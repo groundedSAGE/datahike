@@ -15,7 +15,7 @@
 (s/def :db.type/float float?)
 (s/def :db.type/number number?)
 (s/def :db.type/instant #?(:clj #(= (class %) java.util.Date)
-                           :cljs #(= % "TODO")))
+                           :cljs #(= (type %) (type (js/Date.)))))
 (s/def :db.type/keyword keyword?)
 (s/def :db.type/long #?(:clj #(= (class %) java.lang.Long)
                         :cljs #(int? %)))

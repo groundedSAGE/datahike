@@ -3,7 +3,9 @@
             [clojure.spec.alpha :as s]
             #?(:clj [konserve.filestore :as fs])
             [konserve.memory :as mem]
-            [superv.async :refer [<?? S]]
+            [clojure.core.async :as async]
+            [superv.async :refer [<?? S <? go-try]]
+            [konserve.indexeddb :refer [new-indexeddb-store]]
             [environ.core :refer [env]]))
 
 (defmulti empty-store
@@ -69,11 +71,21 @@
 (def memory (atom {}))
 
 (defmethod empty-store :mem [{:keys [id]}]
-  (if-let [store (get @memory id)]
-    store
-    (let [store (<?? S (mem/new-mem-store))]
-      (swap! memory assoc id store)
-      store)))
+  (go-try S
+   (if-let [store (get @memory id)]
+     store
+     (let [store (<? S (mem/new-mem-store))]
+       (swap! memory assoc id store)
+       store))))
+
+(defmethod empty-store :indexeddb [{:keys [id]}]
+  (go-try S
+          (if-let [store (get @memory id)]
+            store
+            (let [store (<? S (new-indexeddb-store id))]
+              (swap! memory assoc id store)
+              store))))
+
 
 (defmethod delete-store :mem [{:keys [id]}]
   (swap! memory dissoc id))
@@ -102,11 +114,19 @@
           (kons/add-hitchhiker-tree-handlers
            (<?? S (fs/new-fs-store path)))))
 
+#?(:cljs (defmethod empty-store :indexeddb [{:keys [id]}]
+          (go-try S
+                  (kons/add-hitchhiker-tree-handlers
+                   (<? S (new-indexeddb-store id))))))
+
 #?(:clj (defmethod delete-store :file [{:keys [path]}]
           (fs/delete-store path)))
 
 #?(:clj (defmethod connect-store :file [{:keys [path]}]
           (<?? S (fs/new-fs-store path))))
+
+#?(:cljs (defmethod connect-store :indexeddb [{:keys [id]}]
+           (new-indexeddb-store id)))
 
 (defmethod scheme->index :file [_]
   :datahike.index/hitchhiker-tree)

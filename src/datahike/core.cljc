@@ -436,12 +436,11 @@
 
 (defn ^:no-doc -transact! [conn tx-data tx-meta]
   {:pre [(conn? conn)]}
-  (let [report (atom nil)]
-    (swap! conn (fn [db]
-                  (let [r (with db tx-data tx-meta)]
-                    (reset! report r)
-                    (:db-after r))))
-    @report))
+  (ha/go-try
+   (let [db @conn
+         r (ha/<? (with db tx-data tx-meta))]
+     (reset! conn (:db-after r)) ; assumes connection being locked outside
+     r)))
 
 (defn -load-entities! [conn entities]
   (let [report (atom nil)]
@@ -536,8 +535,12 @@
   ([conn tx-data] (transact! conn tx-data nil))
   ([conn tx-data tx-meta]
    {:pre [(conn? conn)]}
-   (let [report (-transact! conn tx-data tx-meta)]
-     (doseq [[_ callback] (some-> (:listeners (meta conn)) (deref))]
+   (let [;_ (println "calling core/transact!")
+         report (-transact! conn tx-data tx-meta)
+         ;_ (println "core/transact! report: " report)
+         ]
+     #_(doseq [[_ callback] (some-> (:listeners (meta conn)) (deref))]
+       (println "inside callback")
        (callback report))
      report)))
 
@@ -630,6 +633,24 @@
   {:pre [(conn? conn)]}
   @conn)
 
+(defn reify-res [res]
+  #?(:cljs
+     (reify
+       IDeref
+       (-deref [_] res)
+       IDerefWithTimeout
+       (-deref-with-timeout [_ _ _] res)
+       IPending
+       (-realized? [_] true))
+     :clj
+     (reify
+       clojure.lang.IDeref
+       (deref [_] res)
+       clojure.lang.IBlockingDeref
+       (deref [_ _ _] res)
+       clojure.lang.IPending
+       (isRealized [_] true))))
+
 (defn transact
   "Same as [[transact!]], but returns an immediately realized future.
   
@@ -637,23 +658,28 @@
   ([conn tx-data] (transact conn tx-data nil))
   ([conn tx-data tx-meta]
    {:pre [(conn? conn)]}
-   (let [res (transact! conn tx-data tx-meta)]
-     #?(:cljs
-        (reify
-          IDeref
-          (-deref [_] res)
-          IDerefWithTimeout
-          (-deref-with-timeout [_ _ _] res)
-          IPending
-          (-realized? [_] true))
-        :clj 
-        (reify
-          clojure.lang.IDeref
-          (deref [_] res)
-          clojure.lang.IBlockingDeref
-          (deref [_ _ _] res)
-          clojure.lang.IPending
-          (isRealized [_] true))))))
+   (ha/go-try
+    (let [;_ (println "calling core/transact")
+          res (ha/<? (transact! conn tx-data tx-meta))
+          ;_ (println "the res" res)
+          ]
+      (reify-res res)
+      #_#?(:cljs
+           (reify
+             IDeref
+             (-deref [_] res)
+             IDerefWithTimeout
+             (-deref-with-timeout [_ _ _] res)
+             IPending
+             (-realized? [_] true))
+           :clj
+           (reify
+             clojure.lang.IDeref
+             (deref [_] res)
+             clojure.lang.IBlockingDeref
+             (deref [_ _ _] res)
+             clojure.lang.IPending
+             (isRealized [_] true)))))))
 
 (defn load-entities [conn entities]
   {:pre [(conn? conn)]}
