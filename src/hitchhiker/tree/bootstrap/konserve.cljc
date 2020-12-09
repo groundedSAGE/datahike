@@ -25,14 +25,14 @@
 
 (defn encode-index-node
   [node]
-  #?(:cljs (js/console.log "encoding-index-node: " node))
+  ;#?(:cljs (js/console.log "encoding-index-node: " node))
   (-> node
       (nilify [:storage-addr :*last-key-cache])
       (assoc :children (mapv encode (:children node)))))
 
 (defn encode-data-node
   [node]
-  #?(:cljs (js/console.log "encoding-data-node: " node))
+  ;#?(:cljs (js/console.log "encoding-data-node: " node))
   (nilify node
           [:storage-addr
            :*last-key-cache]))

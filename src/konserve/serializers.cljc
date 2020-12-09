@@ -40,13 +40,13 @@
              read     (fress/read-object reader)]
          read))
      (-serialize [_ bytes write-handlers val]
-       (let [_ (println "invoking -serialize")
+       (let [;_ (println "invoking -serialize")
              merged-handlers (merge
                               custom-write-handlers
                               (incognito-write-handlers write-handlers))
              buf   (fress/byte-stream)
-             _ (js/console.log "FressianSerializer write-handlers:" write-handlers)
-             _ (js/console.log "FressianSerializer merged-handlers:" merged-handlers)
+             ;_ (js/console.log "FressianSerializer write-handlers:" write-handlers)
+             ;_ (js/console.log "FressianSerializer merged-handlers:" merged-handlers)
              writer (fress/create-writer buf #_bytes
                                          :handlers merged-handlers #_(merge
                                                                       custom-write-handlers

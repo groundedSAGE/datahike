@@ -80,8 +80,13 @@
                      :sibling [[:name "Alice"] [:name "Bob"]]}])
   
   
-    (d/transact conn-idb (vec (for [i (range 1000)]
-                                {:age i})))
+  (go (time (<! (d/transact conn-idb (vec (for [i (range 10000)]
+                                              {:age i}))))))
+  
+  (go (time (println (<! (d/q '[:find (count ?e)
+                                :where 
+                                [?e :age _]]
+                              @conn-idb)))))
 
   (go (println (<! (d/q '[:find ?e ?a ?v ?t
                           :in $ ?a

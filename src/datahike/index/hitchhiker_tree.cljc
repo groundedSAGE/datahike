@@ -72,11 +72,11 @@
 
 (defn -slice
   [tree from to index-type]
-  (println "invoking -slice")
-  (println "-slice: " tree)
-  (println "-slice: " from)
-  (println "-slice: " to)
-  (println "-slice: " index-type)
+  ;(println "invoking -slice")
+  ;(println "-slice: " tree)
+  ;(println "-slice: " from)
+  ;(println "-slice: " to)
+  ;(println "-slice: " index-type)
   (let [create-datom (index-type->datom-fn index-type)
         [a b c d] (from-datom from index-type)
         [e f g h] (from-datom to index-type)
