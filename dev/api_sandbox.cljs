@@ -57,9 +57,14 @@
   (d/delete-database cfg-idb)
   
   ;(js/window.indexedDB.deleteDatabase "idb-sandbox")
-  (println "test")
+  (println "-------------------------------")
+  
+  (js/console.log datahike.connector/merge-data-result)
+  (js/console.log datahike.connector/assoc-value)
  
   (d/create-database cfg-idb)
+   
+   
 
   (go (def conn-idb (<! (d/connect cfg-idb))))
   
@@ -73,6 +78,10 @@
                     {:name    "Charlie"
                      :age     45
                      :sibling [[:name "Alice"] [:name "Bob"]]}])
+  
+  
+    (d/transact conn-idb (vec (for [i (range 1000)]
+                                {:age i})))
 
   (go (println (<! (d/q '[:find ?e ?a ?v ?t
                           :in $ ?a

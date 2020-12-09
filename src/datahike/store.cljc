@@ -114,7 +114,7 @@
            (println "empty-store id string?: " (string? id))
            (go-try S
                    (let [result (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer)))
-                         _ (println "empty-store result: " result)]
+                         _ (js/console.log "empty-store result: " result)]
                      (kons/add-hitchhiker-tree-handlers
                       result)))))
 

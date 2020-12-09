@@ -72,6 +72,11 @@
 
 (defn -slice
   [tree from to index-type]
+  (println "invoking -slice")
+  (println "-slice: " tree)
+  (println "-slice: " from)
+  (println "-slice: " to)
+  (println "-slice: " index-type)
   (let [create-datom (index-type->datom-fn index-type)
         [a b c d] (from-datom from index-type)
         [e f g h] (from-datom to index-type)
@@ -149,6 +154,9 @@
   (hmsg/delete tree (datom->node datom index-type)))
 
 (defn -flush [tree backend]
+  ;(println "-flush")
+  ;(println "tree: " tree)
+  ;(println "backend: " backend)
   (ha/go-try
    (:tree (ha/<? (tree/flush-tree-without-root tree backend)))))
 
