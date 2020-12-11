@@ -6,7 +6,7 @@
             [clojure.core.async :as async]
             [hitchhiker.tree.utils.cljs.async :as ha]
             [superv.async :refer [<?? S <? go-try]]
-            #?(:cljs [konserve.indexeddb :refer [new-indexeddb-store]])
+            #?(:cljs [konserve.indexeddb :refer [new-indexeddb-store delete-indexeddb-store]])
             [konserve.serializers :as ser]
             [environ.core :refer [env]]))
 
@@ -41,6 +41,8 @@
   "Releases the connection to an existing store (optional)."
   {:arglists '([config store])}
   (fn [{:keys [backend]} store]
+    #?(:cljs (js/console.log "This is the defmulti of release-store (store): " store))
+    #?(:cljs (js/console.log "This is the defmulti of release-store: (backend)" backend))
     backend))
 
 (defmethod release-store :default [_ _]
@@ -109,14 +111,6 @@
           (kons/add-hitchhiker-tree-handlers
            (<?? S (fs/new-fs-store path)))))
 
-#?(:cljs (defmethod empty-store :indexeddb [{:keys [id]}]
-           (println "empty-store method")
-           (println "empty-store id string?: " (string? id))
-           (go-try S
-                   (let [result (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer)))
-                         _ (js/console.log "empty-store result: " result)]
-                     (kons/add-hitchhiker-tree-handlers
-                      result)))))
 
 #_#?(:clj (defmethod delete-store  :indexeddb [{:keys [id]}]
           (fs/delete-store id)))
@@ -127,10 +121,30 @@
 #?(:clj (defmethod connect-store :file [{:keys [path]}]
           (<?? S (fs/new-fs-store path))))
 
+;; indexeddb
+
+#?(:cljs (defmethod empty-store :indexeddb [{:keys [id]}]
+           (go-try S
+                   (kons/add-hitchhiker-tree-handlers
+                    (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer)))))))
+
+
 #?(:cljs (defmethod connect-store :indexeddb [{:keys [id]}]
-           (do 
-             (println "connected-store")
-             (new-indexeddb-store id :serializer (ser/fressian-serializer)))))
+           (new-indexeddb-store id :serializer (ser/fressian-serializer))))
+
+
+#?(:cljs (defmethod release-store :indexeddb [the-store]
+           (do
+            ; (println "invoking release store on" id)
+             (js/console.log "the store in release store: " the-store)
+             nil)))
+
+#?(:cljs (defmethod delete-store :indexeddb [{:keys [id]}]
+           (do
+             (println "deleting-store in defmethod" id)
+             (delete-indexeddb-store id))))
+
+
 
 
 (defmethod scheme->index :file [_]

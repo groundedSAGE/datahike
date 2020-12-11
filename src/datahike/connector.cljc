@@ -13,6 +13,7 @@
             [superv.async :refer [<?? S go-try <?]]
             [taoensso.timbre :as log]
             [clojure.spec.alpha :as s]
+            #?(:cljs [cljs.core.async.interop :refer-macros [<p!]])
             #?(:clj [clojure.core.cache :as cache])
             #?(:cljs [cljs.cache :as cache]))
   #?(:clj (:import [java.net URI])))
@@ -22,31 +23,19 @@
 
    (defn update-and-flush-db [connection tx-data update-fn]
      (ha/go-try
-      (let [;_ (println "made it to update-and-flush-db")
-            ;_ (println "connection: " connection)
-            ;_ (println "tx-data: " tx-data)
-            update-fn-result (update-fn connection tx-data)
-            ;_ (println "update-fn: " update-fn-result)
+      (let [update-fn-result (update-fn connection tx-data)
             fn-take (ha/<? update-fn-result)
-            ;_ (println "take on update-fn: " @fn-take)
             {:keys [db-after] :as tx-report} @fn-take
-            ;_ (println "db-after: " db-after)
             {:keys [eavt aevt avet temporal-eavt temporal-aevt temporal-avet schema rschema config max-tx hash]} db-after
             store (:store @connection)
-            ;_ (println "flush-db 1 " @connection)
             backend (kons/->KonserveBackend store)
-           ; _ (println "flush-db 2 " backend)
-            ;_ (println "flush-db pre flush " )
             eavt-flushed (ha/<? (di/-flush eavt backend))
-            ;_ (println "flush-db 3 ")
             aevt-flushed (ha/<? (di/-flush aevt backend))
             avet-flushed (ha/<? (di/-flush avet backend))
-            ;_ (println "history? " (:keep-history? config))
             keep-history? (:keep-history? config)
             temporal-eavt-flushed (when keep-history? (ha/<? (di/-flush temporal-eavt backend)))
             temporal-aevt-flushed (when keep-history? (ha/<? (di/-flush temporal-aevt backend)))
-            temporal-avet-flushed (when keep-history? (ha/<? (di/-flush temporal-avet backend)))
-            #__ #_(println "end let update-and-flush-db")]
+            temporal-avet-flushed (when keep-history? (ha/<? (di/-flush temporal-avet backend)))]
         (<? S (k/assoc-in store [:db]
                            (merge
                             {:schema   schema
@@ -114,7 +103,8 @@
         :cljs (throw (js/Error. "TODO: transact! inside of connector"))))
 
    (defn release [connection]
-     (ds/release-store (get-in @connection [:config :store]) (:store @connection)))
+     (.close (:db connection))
+     #_(ds/release-store (get-in @connection [:config :store]) (:store @connection)))
    
 
 ;; deprecation begin
@@ -142,7 +132,15 @@
         :cljs cljs.core/PersistentArrayMap)
      
      (-database-exists? [config]
-       (let [config (dc/load-config config)
+       (println "called database-exists?" config)
+       (async/go
+         (try
+           (let [raw-db-list (<p! (.databases js/window.indexedDB))
+                 db-list (js->clj raw-db-list :keywordize-keys true)
+                 db-id (get-in config [:store :id])]
+             (contains? (set (map :name db-list)) "idb-sandbox"))
+           (catch js/Error err (js/console.log (ex-cause err)))))
+       #_(let [config (dc/load-config config)
              store-config (:store config)
              _ (println "called database-exists?")
              raw-store (ds/connect-store store-config)]  ;;TODO: connect-store returns a channel
@@ -162,9 +160,7 @@
                (go-try S
                        (let [config (dc/load-config config)
                              store-config (:store config)
-                             _ (js/console.log "-connect config: " config)
                              raw-store (ha/<? (ds/connect-store store-config))
-                             _ (js/console.log "-connect raw-store: " raw-store)
                              _ (when-not raw-store
                                  (dt/raise "Backend does not exist." {:type :backend-does-not-exist
                                                                       :config config}))
@@ -172,23 +168,15 @@
                                     (kc/ensure-cache
                                      raw-store
                                      (atom (cache/lru-cache-factory {} :threshold 1000))))
-                             _ (js/console.log "-connect store: " store)
-
                              stored-db (<? S (k/get-in store [:db]))
-                             _ (js/console.log "-connect stored-db: " stored-db)
                              #__ #_(when-not stored-db
                                      (ds/release-store store-config store)
                                      (dt/raise "Database does not exist." {:type :db-does-not-exist
                                                                            :config config}))
                              {:keys [eavt-key aevt-key avet-key temporal-eavt-key temporal-aevt-key temporal-avet-key schema rschema config max-tx hash]} stored-db
-                             ;_ (println "-connect: eavt" eavt-key)
-                             ;_ (println "-connect: aevt" aevt-key)
-                             ;_ (println "-connect: avet" avet-key)
                              empty (<? S (db/empty-db nil config))
                              lock-ch (async/chan) ;; TODO: consider reader literals
-                             _ (async/put! lock-ch :unlocked)
-                             ;_ (println "-connect Point: 1")
-                             ]
+                             _ (async/put! lock-ch :unlocked)]
                          (d/conn-from-db
                           (assoc empty
                                  :max-tx max-tx
@@ -211,59 +199,39 @@
                        (ha/go-try
                          (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
                                store-config (:store config)
-                               ;_ (println "Point: 1")
                                store (kc/ensure-cache
                                       (ha/<? (ds/empty-store store-config))
                                       (atom (cache/lru-cache-factory {} :threshold 1000)))
-                               ;_ (println "Point: 2")
-                               _ #?(:cljs (js/console.log "store: " store) :clj nil)
                                stored-db (<? S (k/get-in store [:db]))
                                _ (when stored-db
                                    (dt/raise "Database already exists." {:type :db-already-exists :config store-config}))
                                empty-db-test  (ha/<? (db/empty-db nil config))
                                {:keys [eavt aevt avet temporal-eavt temporal-aevt temporal-avet schema rschema config max-tx hash]}
                                empty-db-test
-                               ;_ (println "Point: 3")
-                               ;_ (println "Point: 3.1" eavt)
-                               ;_ (println "Point: 3.2" aevt)
-                               ;_ (println "Point: 3.3" avet)
-                               backend (kons/->KonserveBackend store)
-                               merge-data (merge {:schema   schema
-                                                  :max-tx max-tx
-                                                  :hash hash
-                                                  :rschema  rschema
-                                                  :config   config
-                                                  :eavt-key (ha/<? (di/-flush eavt backend))
-                                                  :aevt-key (ha/<? (di/-flush aevt backend))
-                                                  :avet-key (ha/<? (di/-flush avet backend))}
-                                                 (when keep-history?
-                                                   {:temporal-eavt-key (ha/<? (di/-flush temporal-eavt backend))
-                                                    :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
-                                                    :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))]
-                           ;#?(:cljs (js/console.log "empty-db-test: " empty-db-test))
-                           ;#?(:cljs (js/console.log "backend: " backend))
-                           (def merge-data-result  merge-data)
-                           (def assoc-value (<? S (k/assoc-in store [:db] merge-data
-                                                              #_(merge {:schema   schema
-                                                                      :max-tx max-tx
-                                                                      :hash hash
-                                                                      :rschema  rschema
-                                                                      :config   config
-                                                                      :eavt-key (ha/<? (di/-flush eavt backend))
-                                                                      :aevt-key (ha/<? (di/-flush aevt backend))
-                                                                      :avet-key (ha/<? (di/-flush avet backend))}
-                                                                     (when keep-history?
-                                                                       {:temporal-eavt-key (ha/<? (di/-flush temporal-eavt backend))
-                                                                        :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
-                                                                        :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))})))))
-                           ;_ (println "Point: 4")
-                           (ds/release-store store-config store)
+                               backend (kons/->KonserveBackend store)]
+                           (<? S (k/assoc-in store [:db]
+                                             (merge {:schema   schema
+                                                     :max-tx max-tx
+                                                     :hash hash
+                                                     :rschema  rschema
+                                                     :config   config
+                                                     :eavt-key (ha/<? (di/-flush eavt backend))
+                                                     :aevt-key (ha/<? (di/-flush aevt backend))
+                                                     :avet-key (ha/<? (di/-flush avet backend))}
+                                                    (when keep-history?
+                                                      {:temporal-eavt-key (ha/<? (di/-flush temporal-eavt backend))
+                                                       :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
+                                                       :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
+                           (js/console.log " store-config " store-config)
+                           (js/console.log " store result " (:db store))
+                           (.close (:db store)) ;release the store
+                           ;(ds/release-store store-config store)
                            (when initial-tx
                              (let [conn (<? S (-connect config))]
-                               #?(:cljs (js/console.log "create db - Point: 6 " (:store @conn)))
                                (<? S (transact conn initial-tx))
-                               (release conn)))
-                           #_(println "create db - Point: 7"))))
+                               ;(release conn)
+                               (.close (:db (:store @conn))) ; release the store
+                               )))))
 
      (-delete-database [config]
        (let [config (dc/load-config config {})]

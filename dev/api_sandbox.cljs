@@ -1,6 +1,9 @@
 (ns api-sandbox
   (:require [datahike.api :as d]
-            [clojure.core.async :as async :refer [go <!]]))
+            [clojure.core.async :as async :refer [go <!]]
+            [cljs.core.async.interop :refer-macros [<p!]]
+            [superv.async :refer [<?? S go-try <?]]
+            [konserve.core :as k]))
 
 (comment
   
@@ -24,7 +27,7 @@
   
 
   (d/delete-database cfg)
- 
+
   (d/create-database cfg)
 
   (go (def conn (<! (d/connect cfg))))
@@ -56,11 +59,10 @@
 
   (d/delete-database cfg-idb)
   
-  ;(js/window.indexedDB.deleteDatabase "idb-sandbox")
-  (println "-------------------------------")
+
   
-  (js/console.log datahike.connector/merge-data-result)
-  (js/console.log datahike.connector/assoc-value)
+  (println "-------------------------------")
+
  
   (d/create-database cfg-idb)
    
@@ -68,7 +70,12 @@
 
   (go (def conn-idb (<! (d/connect cfg-idb))))
   
+  (defn release-connection []
+    (.close (:db (:store @conn-idb))))
   
+  (:store @conn-idb)
+  
+  (release-connection)
 
 
   (d/transact conn-idb [{:name "Alice"
@@ -94,8 +101,17 @@
                         @conn-idb
                         45))))
   
+
   
   
+  
+  (d/release conn-idb)
+  
+  (go (println (<! (d/database-exists? cfg-idb))))
+  
+  (d/delete-database cfg-idb)
+  
+
   
   ;;
   )
