@@ -263,9 +263,11 @@
 
   []
   (go
-    (let [raw-db-list (<p! (.databases js/window.indexedDB))
-          db-list (js->clj raw-db-list :keywordize-keys true)]
-      (set (map :name db-list)))))
+    (try 
+      (let [raw-db-list (<p! (.databases js/window.indexedDB))
+            db-list (js->clj raw-db-list :keywordize-keys true)]
+        (set (map :name db-list)))
+      (catch js/Error err (js/console.log (ex-cause err))))))
 
 
 (comment

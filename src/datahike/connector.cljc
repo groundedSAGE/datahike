@@ -133,10 +133,8 @@
      
      (-database-exists? [config]
        (async/go
-         (try
-           (contains? (ha/<? (collect-indexeddb-stores)) 
-                      (get-in config [:store :id]))
-           (catch js/Error err (js/console.log (ex-cause err)))))
+         (contains? (ha/<? (collect-indexeddb-stores))
+                    (get-in config [:store :id])))
                         
        #_(let [config (dc/load-config config)
              store-config (:store config)
