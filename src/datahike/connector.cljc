@@ -133,7 +133,7 @@
      
      (-database-exists? [config]
        (async/go
-         (contains? (ha/<? (collect-indexeddb-stores))
+         (contains? (ha/<? (collect-indexeddb-stores))  ;; TODO: ensure that this is our db
                     (get-in config [:store :id])))
                         
        #_(let [config (dc/load-config config)

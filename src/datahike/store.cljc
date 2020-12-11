@@ -134,7 +134,12 @@
 
 
 #?(:cljs (defmethod connect-store :indexeddb [{:keys [id]}]
-           (new-indexeddb-store id :serializer (ser/fressian-serializer))))
+           (go-try S
+                   (or (get indexeddb id)
+                       (let [store (kons/add-hitchhiker-tree-handlers
+                                    (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer))))]
+                         (swap! indexeddb assoc id store)
+                         store)))))
 
 
 #?(:cljs (defmethod release-store :indexeddb [{:keys [id]}]
