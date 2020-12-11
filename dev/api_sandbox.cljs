@@ -111,6 +111,16 @@
   
   (d/delete-database cfg-idb)
   
+  
+  
+  ;; second idb
+  (def cfg-idb-test {:store  {:backend :indexeddb :id "idb-test"}
+                   :keep-history? false
+                   :schema-flexibility :write
+                   :initial-tx schema})
+  
+  (d/create-database cfg-idb-test)
+  
 
   
   ;;

@@ -13,6 +13,7 @@
             [superv.async :refer [<?? S go-try <?]]
             [taoensso.timbre :as log]
             [clojure.spec.alpha :as s]
+            #?(:cljs [konserve.indexeddb :refer [collect-indexeddb-stores]])
             #?(:cljs [cljs.core.async.interop :refer-macros [<p!]])
             #?(:clj [clojure.core.cache :as cache])
             #?(:cljs [cljs.cache :as cache]))
@@ -103,8 +104,7 @@
         :cljs (throw (js/Error. "TODO: transact! inside of connector"))))
 
    (defn release [connection]
-     (.close (:db connection))
-     #_(ds/release-store (get-in @connection [:config :store]) (:store @connection)))
+     (ds/release-store (get-in @connection [:config :store]) (:store @connection)))
    
 
 ;; deprecation begin
@@ -132,14 +132,12 @@
         :cljs cljs.core/PersistentArrayMap)
      
      (-database-exists? [config]
-       (println "called database-exists?" config)
        (async/go
          (try
-           (let [raw-db-list (<p! (.databases js/window.indexedDB))
-                 db-list (js->clj raw-db-list :keywordize-keys true)
-                 db-id (get-in config [:store :id])]
-             (contains? (set (map :name db-list)) "idb-sandbox"))
+           (contains? (ha/<? (collect-indexeddb-stores)) 
+                      (get-in config [:store :id]))
            (catch js/Error err (js/console.log (ex-cause err)))))
+                        
        #_(let [config (dc/load-config config)
              store-config (:store config)
              _ (println "called database-exists?")
@@ -224,8 +222,10 @@
                                                        :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
                            (js/console.log " store-config " store-config)
                            (js/console.log " store result " (:db store))
-                           (.close (:db store)) ;release the store
-                           ;(ds/release-store store-config store)
+                           ;(.close (:db store)) ;release the store
+                           (println "calling release store")
+                           (ds/release-store store-config store)
+                           (println "finished calling release store")
                            (when initial-tx
                              (let [conn (<? S (-connect config))]
                                (<? S (transact conn initial-tx))

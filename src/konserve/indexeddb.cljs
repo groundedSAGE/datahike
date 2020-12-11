@@ -2,6 +2,7 @@
   (:require [incognito.edn :refer [read-string-safe]]
             [konserve.core :as k]
             [konserve.serializers :as ser]
+            [cljs.core.async.interop :refer-macros [<p!]]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore -exists? -get -update-in -assoc-in -get-meta
                                         PBinaryAsyncKeyValueStore -bget -bassoc
                                         PStoreSerializer -serialize -deserialize]]
@@ -255,6 +256,16 @@
             (fn success-handler []
               (println "Couldn't delete database due to the operation being blocked" id)))
       res)))
+
+
+(defn collect-indexeddb-stores
+  "Returns a set of local indexeddb stores"
+
+  []
+  (go
+    (let [raw-db-list (<p! (.databases js/window.indexedDB))
+          db-list (js->clj raw-db-list :keywordize-keys true)]
+      (set (map :name db-list)))))
 
 
 (comment

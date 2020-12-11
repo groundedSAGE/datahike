@@ -41,8 +41,6 @@
   "Releases the connection to an existing store (optional)."
   {:arglists '([config store])}
   (fn [{:keys [backend]} store]
-    #?(:cljs (js/console.log "This is the defmulti of release-store (store): " store))
-    #?(:cljs (js/console.log "This is the defmulti of release-store: (backend)" backend))
     backend))
 
 (defmethod release-store :default [_ _]
@@ -123,20 +121,28 @@
 
 ;; indexeddb
 
+(def indexeddb (atom {}))
+
+@indexeddb
+
 #?(:cljs (defmethod empty-store :indexeddb [{:keys [id]}]
            (go-try S
-                   (kons/add-hitchhiker-tree-handlers
-                    (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer)))))))
+                   (let [store (kons/add-hitchhiker-tree-handlers
+                                (<? S (new-indexeddb-store id :serializer (ser/fressian-serializer))))]
+                     (swap! indexeddb assoc id store)
+                     store))))
 
 
 #?(:cljs (defmethod connect-store :indexeddb [{:keys [id]}]
            (new-indexeddb-store id :serializer (ser/fressian-serializer))))
 
 
-#?(:cljs (defmethod release-store :indexeddb [the-store]
+#?(:cljs (defmethod release-store :indexeddb [{:keys [id]}]
            (do
             ; (println "invoking release store on" id)
-             (js/console.log "the store in release store: " the-store)
+             (js/console.log "the store in release store: " (:db (get @indexeddb id)))
+             (.close (:db (get @indexeddb id)))
+             (println "released store")
              nil)))
 
 #?(:cljs (defmethod delete-store :indexeddb [{:keys [id]}]
