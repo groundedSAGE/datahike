@@ -104,6 +104,7 @@
         :cljs (throw (js/Error. "TODO: transact! inside of connector"))))
 
    (defn release [connection]
+     ;(.close (:db (:store @connection)))
      (ds/release-store (get-in @connection [:config :store]) (:store @connection)))
    
 
@@ -117,123 +118,126 @@
    (extend-protocol IConfiguration
      #_String
      #_(-connect [uri]
-       (-connect (dc/uri->config uri)))
+                 (-connect (dc/uri->config uri)))
 
      #_(-create-database [uri & opts]
-       (apply -create-database (dc/uri->config uri) opts))
+                         (apply -create-database (dc/uri->config uri) opts))
 
      #_(-delete-database [uri]
-       (-delete-database (dc/uri->config uri)))
+                         (-delete-database (dc/uri->config uri)))
 
      #_(-database-exists? [uri]
-       (-database-exists? (dc/uri->config uri)))
+                          (-database-exists? (dc/uri->config uri)))
 
      #?(:clj clojure.lang.IPersistentMap
         :cljs cljs.core/PersistentArrayMap)
-     
+
      (-database-exists? [config]
        (async/go
-         (contains? (ha/<? (collect-indexeddb-stores))  ;; TODO: ensure that this is our db
-                    (get-in config [:store :id])))
-                        
-       #_(let [config (dc/load-config config)
-             store-config (:store config)
-             _ (println "called database-exists?")
-             raw-store (ds/connect-store store-config)]  ;;TODO: connect-store returns a channel
-         (if (not (nil? raw-store))
-           (let [store (kons/add-hitchhiker-tree-handlers
-                        (kc/ensure-cache
-                         raw-store
-                         (atom (cache/lru-cache-factory {} :threshold 1000))))
-                 stored-db (<?? S (k/get-in store [:db]))]
-             (ds/release-store store-config store)
-             (not (nil? stored-db)))
-           (do
-             (ds/release-store store-config raw-store)
+         (let [exists? (contains? (ha/<? (collect-indexeddb-stores))  ;; TODO: ensure that this is our db
+                                  (get-in config [:store :id]))]
+           (if exists?
+             (let [config (dc/load-config config)
+                   store-config (:store config)
+                   raw-store (ha/<? (ds/connect-store store-config))]  ;;TODO: connect-store returns a channel
+               (if (not (nil? raw-store))
+                 (let [store (kons/add-hitchhiker-tree-handlers
+                              (kc/ensure-cache
+                               raw-store
+                               (atom (cache/lru-cache-factory {} :threshold 1000))))
+                       stored-db (<? S (k/get-in store [:db]))]
+                   (ds/release-store store-config store)
+                   (not (nil? stored-db)))
+                 (do
+                   (ds/release-store store-config raw-store)
+                   false)))
              false))))
 
      (-connect [config]
-               (go-try S
-                       (let [config (dc/load-config config)
-                             store-config (:store config)
-                             raw-store (ha/<? (ds/connect-store store-config))
-                             _ (when-not raw-store
-                                 (dt/raise "Backend does not exist." {:type :backend-does-not-exist
-                                                                      :config config}))
-                             store (kons/add-hitchhiker-tree-handlers
-                                    (kc/ensure-cache
-                                     raw-store
-                                     (atom (cache/lru-cache-factory {} :threshold 1000))))
-                             stored-db (<? S (k/get-in store [:db]))
-                             #__ #_(when-not stored-db
-                                     (ds/release-store store-config store)
-                                     (dt/raise "Database does not exist." {:type :db-does-not-exist
-                                                                           :config config}))
-                             {:keys [eavt-key aevt-key avet-key temporal-eavt-key temporal-aevt-key temporal-avet-key schema rschema config max-tx hash]} stored-db
-                             empty (<? S (db/empty-db nil config))
-                             lock-ch (async/chan) ;; TODO: consider reader literals
-                             _ (async/put! lock-ch :unlocked)]
-                         (d/conn-from-db
-                          (assoc empty
-                                 :max-tx max-tx
-                                 :config config
-                                 :schema schema
-                                 :hash hash
-                                 :max-eid (<? S (db/init-max-eid eavt-key))
-                                 :eavt eavt-key
-                                 :aevt aevt-key
-                                 :avet avet-key
-                                 :temporal-eavt temporal-eavt-key
-                                 :temporal-aevt temporal-aevt-key
-                                 :temporal-avet temporal-avet-key
-                                 :rschema rschema
-                                 :store store
-                                 :lock lock-ch)))))
+       (go-try S
+               (if-not (ha/<? (-database-exists? config))
+                 (do (println "TODO: better error database doesn't exist ") nil)
+                 (let [_ (println "starting connect")
+                       config (dc/load-config config)
+                       store-config (:store config)
+                       raw-store (ha/<? (ds/connect-store store-config))
+                       _ (when-not raw-store
+                           (dt/raise "Backend does not exist." {:type :backend-does-not-exist
+                                                                :config config}))
+                       store (kons/add-hitchhiker-tree-handlers
+                              (kc/ensure-cache
+                               raw-store
+                               (atom (cache/lru-cache-factory {} :threshold 1000))))
+                       stored-db (<? S (k/get-in store [:db]))
+                       #__ #_(when-not stored-db
+                               (ds/release-store store-config store)
+                               (dt/raise "Database does not exist." {:type :db-does-not-exist
+                                                                     :config config}))
+                       {:keys [eavt-key aevt-key avet-key temporal-eavt-key temporal-aevt-key temporal-avet-key schema rschema config max-tx hash]} stored-db
+                       empty (<? S (db/empty-db nil config))
+                       lock-ch (async/chan) ;; TODO: consider reader literals
+                       _ (async/put! lock-ch :unlocked)]
+                   (d/conn-from-db
+                    (assoc empty
+                           :max-tx max-tx
+                           :config config
+                           :schema schema
+                           :hash hash
+                           :max-eid (<? S (db/init-max-eid eavt-key))
+                           :eavt eavt-key
+                           :aevt aevt-key
+                           :avet avet-key
+                           :temporal-eavt temporal-eavt-key
+                           :temporal-aevt temporal-aevt-key
+                           :temporal-avet temporal-avet-key
+                           :rschema rschema
+                           :store store
+                           :lock lock-ch))))))
 
-     
+
      (-create-database [config #_& #_deprecated-config]
-                       (ha/go-try
-                         (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
-                               store-config (:store config)
-                               store (kc/ensure-cache
-                                      (ha/<? (ds/empty-store store-config))
-                                      (atom (cache/lru-cache-factory {} :threshold 1000)))
-                               stored-db (<? S (k/get-in store [:db]))
-                               _ (when stored-db
-                                   (dt/raise "Database already exists." {:type :db-already-exists :config store-config}))
-                               empty-db-test  (ha/<? (db/empty-db nil config))
-                               {:keys [eavt aevt avet temporal-eavt temporal-aevt temporal-avet schema rschema config max-tx hash]}
-                               empty-db-test
-                               backend (kons/->KonserveBackend store)]
-                           (<? S (k/assoc-in store [:db]
-                                             (merge {:schema   schema
-                                                     :max-tx max-tx
-                                                     :hash hash
-                                                     :rschema  rschema
-                                                     :config   config
-                                                     :eavt-key (ha/<? (di/-flush eavt backend))
-                                                     :aevt-key (ha/<? (di/-flush aevt backend))
-                                                     :avet-key (ha/<? (di/-flush avet backend))}
-                                                    (when keep-history?
-                                                      {:temporal-eavt-key (ha/<? (di/-flush temporal-eavt backend))
-                                                       :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
-                                                       :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
-                           (js/console.log " store-config " store-config)
-                           (js/console.log " store result " (:db store))
-                           ;(.close (:db store)) ;release the store
-                           (println "calling release store")
-                           (ds/release-store store-config store)
-                           (println "finished calling release store")
-                           (when initial-tx
-                             (let [conn (<? S (-connect config))]
-                               (<? S (transact conn initial-tx))
-                               ;(release conn)
-                               (.close (:db (:store @conn))) ; release the store
-                               )))))
+       (ha/go-try
+        (if (ha/<? (-database-exists? config))
+          (do (println "TODO: make better error: database already exists ") nil)
+          (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
+                store-config (:store config)
+                _ (println "ds/empty-store")
+                store (kc/ensure-cache
+                       (ha/<? (ds/empty-store store-config))
+                       (atom (cache/lru-cache-factory {} :threshold 1000)))
+                stored-db (<? S (k/get-in store [:db]))
+                _ (when stored-db
+                    (dt/raise "Database already exists." {:type :db-already-exists :config store-config}))
+                empty-db-test  (ha/<? (db/empty-db nil config))
+                {:keys [eavt aevt avet temporal-eavt temporal-aevt temporal-avet schema rschema config max-tx hash]}
+                empty-db-test
+                backend (kons/->KonserveBackend store)]
+            (<? S (k/assoc-in store [:db]
+                              (merge {:schema   schema
+                                      :max-tx max-tx
+                                      :hash hash
+                                      :rschema  rschema
+                                      :config   config
+                                      :eavt-key (ha/<? (di/-flush eavt backend))
+                                      :aevt-key (ha/<? (di/-flush aevt backend))
+                                      :avet-key (ha/<? (di/-flush avet backend))}
+                                     (when keep-history?
+                                       {:temporal-eavt-key (ha/<? (di/-flush temporal-eavt backend))
+                                        :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
+                                        :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
+            (ds/release-store store-config store)
+            (when initial-tx
+              (println "initial-tx")
+              (let [conn (<? S (-connect config))]
+                (<? S (transact conn initial-tx))
+                (release conn)))))))
 
      (-delete-database [config]
-       (let [config (dc/load-config config {})]
-         (ds/delete-store (:store config)))))
+                       (ha/go-try
+                        (if (ha/<? (-database-exists? config))
+                          (let [config (dc/load-config config {})]
+                            (ds/delete-store (:store config)))
+                          (do (println "Database doesn't exist") nil)))))
 
    (defn connect
      ([]
@@ -242,6 +246,7 @@
       (-connect config)))
 ;;deprecation end
 
+   
 
 
    (defn create-database
