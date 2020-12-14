@@ -5,12 +5,13 @@
         environ/environ                       {:mvn/version "1.2.0"}
         com.taoensso/timbre           {:mvn/version "4.10.0"}
         io.replikativ/hitchhiker-tree {:git/url "https://github.com/groundedSAGE/hitchhiker-tree.git"
-                                       :sha "951db44da899df3df6d5831267af2f4bebe191fc"}
+                                       :sha "5db97f979d3d9379af7180db13aed5759ad64a6b"}
         io.replikativ/konserve        {:git/url "https://github.com/groundedSAGE/konserve.git"
-                                       :sha "281e57460eb5f1a47f500f498b7d15066be21ec9" #_"e70abe063adb6ed064e78daa7e00f4b03d6222a8"}
-        io.replikativ/superv.async    {:mvn/version "0.2.11"}
-        io.lambdaforge/datalog-parser #_{:local/root "../datalog-parser/replikativ-datalog-parser.jar"} {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
-                                                                                                         :sha "b268f7b0153cda8e4b5fa905870f5b80b1016f5f"}
+                                       :sha "662e43eb06fc9e6e5fef7e3ec9069bfa2c268c6c"}
+        io.replikativ/superv.async    {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
+                                       :sha "bc1bf6e4336baee365e7f0da9b3022e450e58750"} #_{:mvn/version "0.2.11"}
+        io.lambdaforge/datalog-parser  {:git/url "https://github.com/groundedSAGE/datalog-parser.git"
+                                        :sha "b268f7b0153cda8e4b5fa905870f5b80b1016f5f"}
         io.replikativ/zufall          {:mvn/version "0.1.0"}
         junit/junit                   {:mvn/version "4.13"}
         org.clojars.mmb90/cljs-cache  {:mvn/version "0.1.4"}}

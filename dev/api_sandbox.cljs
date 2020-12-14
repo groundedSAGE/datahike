@@ -2,12 +2,13 @@
   (:require [datahike.api :as d]
             [clojure.core.async :as async :refer [go <!]]
             [cljs.core.async.interop :refer-macros [<p!]]
-            [superv.async :refer [<?? S go-try <?]]
+            [superv.async :refer [S go-try <?]]
             [konserve.core :as k]))
 
 (comment
   
 
+  
   (def schema [{:db/ident       :name
                 :db/cardinality :db.cardinality/one
                 :db/index       true

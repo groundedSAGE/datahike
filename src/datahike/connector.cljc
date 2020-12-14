@@ -10,7 +10,7 @@
             [konserve.cache :as kc]
             [clojure.core.async :as async]
             [hitchhiker.tree.utils.cljs.async :as ha]
-            [superv.async :refer [<?? S go-try <?]]
+            [superv.async :refer [S go-try <?]]
             [taoensso.timbre :as log]
             [clojure.spec.alpha :as s]
             #?(:cljs [konserve.indexeddb :refer [collect-indexeddb-stores]])

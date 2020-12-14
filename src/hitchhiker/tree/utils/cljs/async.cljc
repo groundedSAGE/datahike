@@ -2,6 +2,12 @@
   #?(:cljs (:require-macros [hitchhiker.tree.utils.cljs.async :refer [go-try <? if-async?]]))
   (:require [clojure.core.async :as async]))
 
+
+;;  This namespace override exists purely for development work on porting to cljs
+;;  Instruments the <?? operator to throw an error when called in cljs
+;;  Once the full port is completed this namespace will be removed.
+;;
+
 (def ^:dynamic *async?* true)
 
 (defmacro if-async?

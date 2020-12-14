@@ -5,7 +5,7 @@
             [konserve.memory :as mem]
             [clojure.core.async :as async]
             [hitchhiker.tree.utils.cljs.async :as ha]
-            [superv.async :refer [<?? S <? go-try]]
+            [superv.async :refer [#?(:clj <??) S <? go-try]]
             #?(:cljs [konserve.indexeddb :refer [new-indexeddb-store delete-indexeddb-store]])
             [konserve.serializers :as ser]
             [environ.core :refer [env]]))
