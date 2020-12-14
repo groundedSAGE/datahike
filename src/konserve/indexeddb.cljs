@@ -219,7 +219,6 @@
     (set! (.-onsuccess req)
           (fn success-handler [e]
             (println "database initialised")
-            (def my-db (.-result req))
             (put! res (map->IndexedDBKeyValueStore {:db (.-result req)
                                                     :serializer serializer
                                                     :store-name name
@@ -238,24 +237,23 @@
   "Delete an IndexedDB backed."
 
   [id]
-  (go
-    (let [res (async/chan)
-          req (.deleteDatabase js/window.indexedDB id)]
-      (set! (.-onerror req)
-            (fn [e]
-              (async/put! res (ex-info (str "Cannot delete " id " IndexedDB store.")
-                                       {:type :db-error
-                                        :error (.-target e)}))
-              (async/close! res)))
-      (set! (.-onsuccess req)
-            (fn success-handler []
-              (println "deleted " id)
-              (async/put! res :deleted)))
+  (let [res (async/chan)
+        req (.deleteDatabase js/window.indexedDB id)]
+    (set! (.-onerror req)
+          (fn [e]
+            (async/put! res (ex-info (str "Cannot delete " id " IndexedDB store.")
+                                     {:type :db-error
+                                      :error (.-target e)}))
+            (async/close! res)))
+    (set! (.-onsuccess req)
+          (fn success-handler []
+            (println "deleted " id)
+            (async/put! res true)))
 
-      (set! (.-onblocked req)
-            (fn success-handler []
-              (println "Couldn't delete database due to the operation being blocked" id)))
-      res)))
+    (set! (.-onblocked req)
+          (fn success-handler []
+            (println "Couldn't delete database due to the operation being blocked" id)))
+    res))
 
 
 (defn collect-indexeddb-stores

@@ -104,8 +104,10 @@
         :cljs (throw (js/Error. "TODO: transact! inside of connector"))))
 
    (defn release [connection]
-     ;(.close (:db (:store @connection)))
      (ds/release-store (get-in @connection [:config :store]) (:store @connection)))
+   
+   (defn memory-store? [config]
+     (= :mem (get-in config [:store :backend])))
    
 
 ;; deprecation begin
@@ -134,12 +136,13 @@
 
      (-database-exists? [config]
        (async/go
-         (let [exists? (contains? (ha/<? (collect-indexeddb-stores))  ;; TODO: ensure that this is our db
-                                  (get-in config [:store :id]))]
+         (let [exists? (or (memory-store? config)
+                           (contains? (ha/<? (collect-indexeddb-stores))  ;; TODO: ensure that this is our db
+                                      (get-in config [:store :id])))]
            (if exists?
              (let [config (dc/load-config config)
                    store-config (:store config)
-                   raw-store (ha/<? (ds/connect-store store-config))]  ;;TODO: connect-store returns a channel
+                   raw-store (ha/<? (ds/connect-store store-config))] 
                (if (not (nil? raw-store))
                  (let [store (kons/add-hitchhiker-tree-handlers
                               (kc/ensure-cache
@@ -169,7 +172,8 @@
                                raw-store
                                (atom (cache/lru-cache-factory {} :threshold 1000))))
                        stored-db (<? S (k/get-in store [:db]))
-                       #__ #_(when-not stored-db
+                       _ (println "running connect")
+                       _ (when-not stored-db
                                (ds/release-store store-config store)
                                (dt/raise "Database does not exist." {:type :db-does-not-exist
                                                                      :config config}))
@@ -198,7 +202,7 @@
      (-create-database [config #_& #_deprecated-config]
        (ha/go-try
         (if (ha/<? (-database-exists? config))
-          (do (println "TODO: make better error: database already exists ") nil)
+          (do (println "database already exists ") nil) ;; TODO: make an error message
           (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
                 store-config (:store config)
                 _ (println "ds/empty-store")
@@ -226,6 +230,7 @@
                                         :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
                                         :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
             (ds/release-store store-config store)
+            (println "made it here in creation process")
             (when initial-tx
               (println "initial-tx")
               (let [conn (<? S (-connect config))]

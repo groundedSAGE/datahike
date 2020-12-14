@@ -57,7 +57,7 @@
   :backend)
 
 (defmethod default-config :default [{:keys [backend] :as config}]
-  (println "INFO: No default configuration found for" backend)
+  #_(println "INFO: No default configuration found for" backend)  ; TODO: uncomment for indexeddb release
   config)
 
 (defmulti config-spec
@@ -66,7 +66,8 @@
   :backend)
 
 (defmethod config-spec :default [{:keys [backend]}]
-  (println "INFO: Not configuration spec found for" backend))
+  nil
+  #_(println "INFO: Not configuration spec found for" backend))  ; TODO: uncomment for indexeddb release
 
 ;; memory
 
@@ -125,6 +126,8 @@
 
 @indexeddb
 
+
+
 #?(:cljs (defmethod empty-store :indexeddb [{:keys [id]}]
            (go-try S
                    (let [store (kons/add-hitchhiker-tree-handlers
@@ -143,17 +146,16 @@
 
 
 #?(:cljs (defmethod release-store :indexeddb [{:keys [id]}]
+           (println "calling release-store")
            (do
-            ; (println "invoking release store on" id)
-             (js/console.log "the store in release store: " (:db (get @indexeddb id)))
              (.close (:db (get @indexeddb id)))
-             (println "released store")
+             (swap! indexeddb dissoc id)
              nil)))
 
 #?(:cljs (defmethod delete-store :indexeddb [{:keys [id]}]
-           (do
-             (println "deleting-store in defmethod" id)
-             (delete-indexeddb-store id))))
+           (go-try S
+                   (let [deleted? (ha/<? (delete-indexeddb-store id))]
+                     (when deleted? (swap! indexeddb dissoc id))))))
 
 
 

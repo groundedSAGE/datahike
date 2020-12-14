@@ -32,7 +32,8 @@
 
   (go (def conn (<! (d/connect cfg))))
   
-  
+  (go (time (<! (d/transact conn (vec (for [i (range 10000)]
+                                          {:age i}))))))
 
 
   (d/transact conn [{:name "Alice"
@@ -69,11 +70,13 @@
    
 
   (go (def conn-idb (<! (d/connect cfg-idb))))
+   
+  (d/release conn-idb)
   
   (defn release-connection []
+    (js/console.log )
     (.close (:db (:store @conn-idb))))
   
-  (:store @conn-idb)
   
   (release-connection)
 
