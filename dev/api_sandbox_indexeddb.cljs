@@ -1,5 +1,6 @@
 (ns api-sandbox-indexeddb
   (:require [datahike.api :as d]
+            [datahike.impl.entity :as de]
             [clojure.core.async :as async :refer [go <!]]))
 
 
@@ -26,7 +27,7 @@
 
 
 (comment
-  
+
   ;; REPL-driven code
 
 
@@ -61,6 +62,13 @@
   (async/go (println (<! ((<! (d/entity @conn-idb 6)) :age))))
   (async/go (println (<! ((<! (d/entity @conn-idb 8)) :sibling))))
   (async/go (println (<! ((<! (d/entity @conn-idb 7)) :friend))))
+
+  
+  ;; Collection operators over a touched db
+  (async/go  (println (count (<! (de/touch (<! (d/entity @conn-idb 6)))))))
+  (async/go  (println (keys (<! (de/touch (<! (d/entity @conn-idb 6)))))))
+  (async/go  (println (vals (<! (de/touch (<! (d/entity @conn-idb 6)))))))
+  (async/go  (println (contains? (<! (de/touch (<! (d/entity @conn-idb 6)))) :name)))
 
 
   ;; Basic performance measurements. This takes up to 30 seconds.
@@ -111,10 +119,10 @@
 
   ;; Create a second database
   (d/create-database cfg-idb-2)
-  
+
   ;; Check for existence of second database
   (go (println (<! (d/database-exists? cfg-idb-2))))
-  
+
   ;; Delete second database
   (d/delete-database cfg-idb-2)
 

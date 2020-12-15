@@ -19,7 +19,7 @@
 (comment
   ;; REPL-driven code
 
-  (println "test that browser is connected")
+  (println "Browser connection test")
 
 
   ;;
@@ -46,7 +46,7 @@
 
   (ha/go-try (def bob-db (:db-after (ha/<? (with (ha/<? (db/empty-db schema))
                                                  [{:name "Bob"
-                                                   :age 5
+                                                   :age 35
                                                    :aka  ["Max" "Jack"]
                                                    :_friend [{:name "Boris"
                                                               :age 28}]}])))))
@@ -91,115 +91,4 @@
   @(.-db touched-entity)
   (count touched-entity)
 
-
-  ;; Experiments
-  (async/go (println (<! (:name (<! (de/entity bob-db 1))))))
-  (async/go  (println (<! (de/touch (<! (de/entity bob-db 1))))))
-  (async/go  (println (<! bob-db)))
-
-  ;; IndexedDB experiments
-
-
-  (ha/go-try (def bob-db-tx (:tx-data (ha/<? (with (ha/<? (db/empty-db schema))
-                                                   [{:name "Bob"
-                                                     :age 5
-                                                     :aka  ["Max" "Jack"]
-                                                     :_friend [{:name "Boris"
-                                                                :age 28}]}])))))
-
-
-
-
-  (count bob-db-tx)
-
-
-
-
-
-
-  (defn cleaner [x]
-    [(first x) (vec (map rest (second x)))])
-
-
-  (go (def my-db (<! (new-indexeddb-store "konserve"))))
-
-  ;; experimental - start
-  (go (doseq [[eid data] (map cleaner (group-by first bob-db-tx))]  
-        (<! (k/assoc-in my-db [eid] data))))
-  
-  (go (println "get:" (<! (k/get-in my-db [1]))))
-  
-  ;; experimental - end
-
-  (go (println "get:" (<! (k/get-in my-db ["test"]))))
-
-  (macroexpand-1 '(k/go-locked nil nil))
-
-  (go (doseq [i (range 10)] (<! (k/assoc-in my-db [i] i))))
-
-  ;; prints 0 to 9 each on a line
-  (go (doseq [i (range 10)]
-        (println "test" (<! (k/get-in my-db [i])))))
-
-
-  (go (println (<! (k/get-in my-db [0]))))
-
-
-  (go (println (<! (k/assoc-in my-db
-                               ["test"]
-                               {:a 1 :b 4.2}))))
-
-  (go (doseq [i (range 10)]
-        (println "testing" (<! (k/get-in my-db [i])))))
-
-  (go (println (<! (k/update-in my-db
-                                ["test" :a]
-                                inc))))
-
-
-
-
-  ;(async/go  (println (count (<! (de/entity bob-db 1))))) ;; works with pre-touch on entity
-
-
-
-
-
-
-  ;;
-  ;; Initial work
-  ;; 
-
-  (println working-tx-dummy)
-
-  (async/go (println (ha/<? (db/empty-db))))
-
-  (async/go (println (async/<! (db/init-db []))))
-
-
-  (async/go (println (async/<! (db/transact-tx-data (:initial-report working-tx-dummy) (:initial-es working-tx-dummy)))))
-
-
-  ;; Testing that datom works
-
-  (require '[datahike.datom :refer [datom]])
-
-  (async/go
-    (let [db-result (async/<! (db/init-db [(datom 1 :foo "bar") (datom 2 :qux :quun)]))
-          _ (println "db-result" db-result)]
-      (println (async/<! (db/-datoms db-result :eavt nil)))))
-
-
-
-
-
-
-
-
-
-
-  ;(def tx-dummy {:initial-report #datahike.db.TxReport{:db-before #datahike/DB {:max-tx 536870912 :max-eid 0}, :db-after #datahike/DB {:max-tx 536870912 :max-eid 0}, :tx-data [], :tempids {}, :tx-meta nil}
-  ;               :initial-es [#:db{:ident :name, :cardinality :db.cardinality/one, :index true, :unique :db.unique/identity, :valueType :db.type/string} #:db{:ident :sibling, :cardinality :db.cardinality/many, :valueType :db.type/ref} #:db{:ident :age, :cardinality :db.cardinality/one, :valueType :db.type/long}]})
-
-  ;;
   )
