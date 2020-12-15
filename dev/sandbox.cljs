@@ -1,19 +1,15 @@
 (ns sandbox
-  (:require ;[datahike.api :as d]
-   [datahike.query :as q]
-   [datahike.db :as db]
-   [clojure.core.async :as async :refer [go <!]]
-   [hitchhiker.tree.utils.cljs.async :as ha]
-   [konserve.core :as k]
-   [konserve.indexeddb :refer [new-indexeddb-store]]
-   ;[datahike.impl.entity :refer [entity]]
-   [datahike.core :as d]
-   [datahike.impl.entity :as de]))
+  (:require [datahike.query :as q]
+            [datahike.db :as db]
+            [clojure.core.async :as async :refer [go <!]]
+            [hitchhiker.tree.utils.cljs.async :as ha]
+            [datahike.impl.entity :as de]))
+
+
 
 (async/go
   (def working-tx-dummy {:initial-report {:db-before (async/<! (db/empty-db)), :db-after (async/<! (db/empty-db)), :tx-data [], :tempids {}, :tx-meta nil}
                          :initial-es [#:db{:ident :name, :cardinality :db.cardinality/one, :index true, :unique :db.unique/identity, :valueType :db.type/string} #:db{:ident :sibling, :cardinality :db.cardinality/many, :valueType :db.type/ref} #:db{:ident :age, :cardinality :db.cardinality/one, :valueType :db.type/long}]}))
-
 
 
 (comment
@@ -52,9 +48,6 @@
                                                               :age 28}]}])))))
 
 
-
-
-
   ;; Query bob-db
   (async/go (println (async/<! (q/q '[:find ?a :where
                                       [?e :name "Bob"]
@@ -90,5 +83,7 @@
   @(.-touched touched-entity)
   @(.-db touched-entity)
   (count touched-entity)
-
+  
+  
+  ;; Blocks formatter from wrapping the parent at last form
   )
