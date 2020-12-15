@@ -5,8 +5,8 @@
 
 ;;  This namespace override exists purely for development work on porting to cljs
 ;;  Instruments the <?? operator to throw an error when called in cljs
-;;  Once the full port is completed this namespace will be removed.
-;;
+;;  Once the full port is completed this override will be removed.
+
 
 (def ^:dynamic *async?* true)
 

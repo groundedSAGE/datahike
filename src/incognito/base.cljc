@@ -4,6 +4,12 @@
                :cljs [cljs.reader :refer [read-string
                                           *tag-table* *default-data-reader-fn*]])))
 
+
+;;  This namespace override exists as part of the development work on porting to cljs. 
+;;  We are currently thinking through how to improve the incognito library for better handling cross platform naming.
+;;  Once the full port is completed this override will be removed.
+
+
 (defrecord IncognitoTaggedLiteral [tag value])
 
 (defn rec-name-parser [handlers]
@@ -23,16 +29,11 @@
 
 (defn incognito-writer [write-handlers r]
   (let [write-handlers      (rec-name-parser write-handlers)
-        ;_                   #?(:cljs (js/console.log "incognito-writer" write-handlers) :clj nil)
         s                   (-> r type pr-str symbol)
-        ;_                   (js/console.log "normalized symbol name:" s)
         break-map-recursion (if (map? r) (into {} r) r)
         [tag v]             (if (write-handlers s)
                               [s ((write-handlers s) break-map-recursion)]
                               [s break-map-recursion]
-                              #_(pr-str->pure-read-string r))
-        ;_                   #?(:cljs (js/console.log "incognito-tag" tag) :clj nil)
-        ;_                   #?(:cljs (js/console.log "incognito-tag" v) :clj nil)
-        ]
+                              #_(pr-str->pure-read-string r))]
     {:tag   tag
      :value v}))

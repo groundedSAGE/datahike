@@ -146,7 +146,6 @@
 
 
 #?(:cljs (defmethod release-store :indexeddb [{:keys [id]}]
-           (println "calling release-store")
            (do
              (.close (:db (get @indexeddb id)))
              (swap! indexeddb dissoc id)

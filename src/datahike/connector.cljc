@@ -159,9 +159,8 @@
      (-connect [config]
        (go-try S
                (if-not (ha/<? (-database-exists? config))
-                 (do (println "TODO: better error database doesn't exist ") nil)
-                 (let [_ (println "starting connect")
-                       config (dc/load-config config)
+                 (do (println "Database doesn't exist ") nil)  ;; Log this to user
+                 (let [config (dc/load-config config)
                        store-config (:store config)
                        raw-store (ha/<? (ds/connect-store store-config))
                        _ (when-not raw-store
@@ -172,7 +171,6 @@
                                raw-store
                                (atom (cache/lru-cache-factory {} :threshold 1000))))
                        stored-db (<? S (k/get-in store [:db]))
-                       _ (println "running connect")
                        _ (when-not stored-db
                                (ds/release-store store-config store)
                                (dt/raise "Database does not exist." {:type :db-does-not-exist
@@ -202,10 +200,9 @@
      (-create-database [config #_& #_deprecated-config]
        (ha/go-try
         (if (ha/<? (-database-exists? config))
-          (do (println "database already exists ") nil) ;; TODO: make an error message
+          (do (println "Database already exists ") nil) ;; Log this to user
           (let [{:keys [keep-history? initial-tx] :as config} (dc/load-config config nil #_deprecated-config)
                 store-config (:store config)
-                _ (println "ds/empty-store")
                 store (kc/ensure-cache
                        (ha/<? (ds/empty-store store-config))
                        (atom (cache/lru-cache-factory {} :threshold 1000)))
@@ -230,12 +227,11 @@
                                         :temporal-aevt-key (ha/<? (di/-flush temporal-aevt backend))
                                         :temporal-avet-key (ha/<? (di/-flush temporal-avet backend))}))))
             (ds/release-store store-config store)
-            (println "made it here in creation process")
             (when initial-tx
-              (println "initial-tx")
               (let [conn (<? S (-connect config))]
                 (<? S (transact conn initial-tx))
-                (release conn)))))))
+                (release conn)
+                (println "Database initialised: " (get-in config [:store :id]))))))))
 
      (-delete-database [config]
                        (ha/go-try

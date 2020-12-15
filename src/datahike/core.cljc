@@ -535,10 +535,7 @@
   ([conn tx-data] (transact! conn tx-data nil))
   ([conn tx-data tx-meta]
    {:pre [(conn? conn)]}
-   (let [;_ (println "calling core/transact!")
-         report (-transact! conn tx-data tx-meta)
-         ;_ (println "core/transact! report: " report)
-         ]
+   (let [report (-transact! conn tx-data tx-meta)]
      #_(doseq [[_ callback] (some-> (:listeners (meta conn)) (deref))]
        (println "inside callback")
        (callback report))
@@ -659,9 +656,7 @@
   ([conn tx-data tx-meta]
    {:pre [(conn? conn)]}
    (ha/go-try
-    (let [;_ (println "calling core/transact")
-          res (ha/<? (transact! conn tx-data tx-meta))
-          ;_ (println "the res" res)
+    (let [res (ha/<? (transact! conn tx-data tx-meta))
           ]
       (reify-res res)
       #_#?(:cljs
